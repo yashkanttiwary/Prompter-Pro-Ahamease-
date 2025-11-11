@@ -1,0 +1,7 @@
+{
+  "name": "Prompt-Sage Fusion Elite V1",
+  "description": "A production-ready prompt engineering assistant that uses the UPWM-V5 Elite Enhanced framework to build enterprise-grade prompts with maximal clarity and zero fluff.",
+  "requestFramePermissions": [
+    "microphone"
+  ]
+}
