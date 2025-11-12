@@ -153,9 +153,9 @@ export default function App() {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   useEffect(() => {
-    if (!isApiKeyConfigured()) {
-      dispatch({ type: 'SET_API_KEY_ERROR', payload: true });
-    }
+    // The initial API key check was removed from here. 
+    // It caused an error banner on deployments where client-side env vars aren't available on load.
+    // The check is now handled gracefully inside `generateResponseStream` when a message is sent.
   }, []);
 
   useEffect(() => {
