@@ -1,15 +1,9 @@
 import { GoogleGenAI, GenerateContentResponse, Type, ContentPart, Content, GenerateContentStreamResult } from "@google/genai";
 import { Message, PromptGenerationResponse, AttachedFile } from '../types';
 
-const API_KEY = process.env.API_KEY;
-
-let ai: GoogleGenAI | null = null;
-if (API_KEY) {
-    ai = new GoogleGenAI({ apiKey: API_KEY });
-}
-
 export const isApiKeyConfigured = (): boolean => {
-    return !!API_KEY;
+    // Always check the live value from the environment.
+    return !!process.env.API_KEY;
 };
 
 // Type guard to validate the structure of the API's JSON response
@@ -82,7 +76,7 @@ BEGIN_APPROACH … 3–5 sentences(method+security+cognitive strategy) … END_A
 BEGIN_ASSUMPTIONS … ≤5 bullets+confidence … END_ASSUMPTIONS
 BEGIN_REASONING_SUMMARY … ≤5 bullets+confidence … END_REASONING_SUMMARY
 BEGIN_DECISION_LOG … 3–6 bullets(choices/trade-offs/tools/security/bias fixes) … END_DECISION_LOG
-BEGIN_BIAS_MITIGATION … protocol used+effectiveness … END_BIAS_MITIGATION
+BEGIN_BIAS_MITIGATION … protocol used+effectiveness … END_BIAS_MITigation
 BEGIN_COGNITIVE_ANALYSIS … load mgmt+attention+chunking … END_COGNITIVE_ANALYSIS
 BEGIN_CONFIDENCE_ASSESSMENT … per-component scores+uncertainty … END_CONFIDENCE_ASSESSMENT
 BEGIN_EMERGENT_BEHAVIOR_SCAN … novel patterns+boundaries … END_EMERGENT_BEHAVIOR_SCAN
@@ -353,12 +347,16 @@ const promptGenerationSchema = {
 };
 
 export async function* generateResponseStream(history: Content[], newUserMessage: string, phase: 'INQUIRY' | 'GENERATION', files: AttachedFile[]): AsyncGenerator<string, { fullResponse: Message; newHistory: Content[] }, void> {
-    if (!ai) {
+    const API_KEY = process.env.API_KEY;
+    if (!API_KEY) {
         const errorMsg: Message = { id: `err-${crypto.randomUUID()}`, role: 'assistant', type: 'chat', content: "Gemini AI not initialized. API Key might be missing." };
         yield errorMsg.content;
         return { fullResponse: errorMsg, newHistory: history };
     }
     
+    // Initialize the AI client just-in-time.
+    const ai = new GoogleGenAI({ apiKey: API_KEY });
+
     const messageParts: ContentPart[] = [];
 
     // Add text part only if there is text

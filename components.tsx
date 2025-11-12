@@ -1,9 +1,8 @@
 import React, { useRef, useState, useEffect, useCallback, memo, useLayoutEffect } from 'react';
 import { 
     Copy, Check, ChevronDown, ChevronRight, RefreshCw, CheckCircle, XCircle, 
-    Paperclip, Mic, X, FileText, PenTool, Undo2, Trash2, PlusSquare, Eraser, Type, 
-    MousePointer2, Circle, Square, Palette, Pencil, PenLine, Highlighter, Shapes, 
-    Lasso, PaintBucket, Save, Redo2, Sparkles, Triangle, Star, Brush
+    Paperclip, Mic, X, FileText, PenTool, Undo2, Trash2, Eraser, 
+    Save, Redo2, Sparkles, Brush
 } from 'lucide-react';
 import { Message, AttachedFile } from './types';
 
@@ -372,8 +371,8 @@ export const Toast = ({ toast, onDismiss }: { toast: { message: string, type: 's
     );
 };
 
-// --- Whiteboard Component (New "Imagine Anything" Version) ---
-type Tool = 'pencil' | 'pen' | 'marker' | 'eraser' | 'shapes' | 'text' | 'lasso' | 'bucket' | 'delete';
+// --- Whiteboard Component (Rebuilt for Reliability) ---
+type Tool = 'brush' | 'eraser' | 'delete';
 
 const FRAME_RATIOS: { [key: string]: number | null } = {
     '1:1': 1, '2:3': 2/3, '3:2': 3/2, '4:3': 4/3, '16:9': 16/9, '9:16': 9/16, '21:9': 21/9, 'Custom': null
@@ -381,14 +380,8 @@ const FRAME_RATIOS: { [key: string]: number | null } = {
 const PRESET_COLORS = ["#000000","#263238","#546E7A","#90A4AE","#F44336","#E91E63","#9C27B0","#673AB7","#3F51B5","#03A9F4","#00BCD4","#009688","#4CAF50","#8BC34A","#FFC107","#FF9800","#FF5722","#795548","#9E9E9E","#7C4DFF"];
 
 const TOOLS_CONFIG = [
-    { id: 'pencil' as const, icon: Pencil, type: 'brush' as const, cursor: 'crosshair', hotkey: 'p' },
-    { id: 'pen' as const, icon: PenLine, type: 'brush' as const, cursor: 'crosshair', hotkey: 'n' },
-    { id: 'marker' as const, icon: Highlighter, type: 'brush' as const, cursor: 'crosshair', hotkey: 'm' },
+    { id: 'brush' as const, icon: Brush, type: 'brush' as const, cursor: 'crosshair', hotkey: 'b' },
     { id: 'eraser' as const, icon: Eraser, type: 'eraser' as const, cursor: 'grab', hotkey: 'e' },
-    { id: 'shapes' as const, icon: Shapes, type: 'menu' as const, cursor: 'default', hotkey: 's', disabled: true },
-    { id: 'text' as const, icon: Type, type: 'mode' as const, cursor: 'text', hotkey: 't', disabled: true },
-    { id: 'lasso' as const, icon: Lasso, type: 'mode' as const, cursor: 'default', hotkey: 'l', disabled: true },
-    { id: 'bucket' as const, icon: PaintBucket, type: 'mode' as const, cursor: 'default', hotkey: 'b', disabled: true },
     { id: 'delete' as const, icon: Trash2, type: 'action' as const, cursor: 'default', hotkey: 'Delete' },
 ];
 
@@ -399,25 +392,24 @@ interface WhiteboardProps {
 }
 
 export const Whiteboard: React.FC<WhiteboardProps> = ({ isOpen, onClose, onGenerate }) => {
+    // Refs for canvas and drawing state that shouldn't trigger re-renders
     const canvasRef = useRef<HTMLCanvasElement>(null);
     const contextRef = useRef<CanvasRenderingContext2D | null>(null);
     const whiteboardContainerRef = useRef<HTMLDivElement>(null);
-    const [history, setHistory] = useState<ImageData[]>([]);
-    const [redoHistory, setRedoHistory] = useState<ImageData[]>([]);
-    const [isDrawing, setIsDrawing] = useState(false);
-    const [hasMoved, setHasMoved] = useState(false);
+    const isDrawing = useRef(false);
+    const hasMoved = useRef(false);
     const lastCoords = useRef({ x: 0, y: 0 });
-    
-    // Tool State
-    const [activeTool, setActiveTool] = useState<Tool>('pencil');
+
+    // State for tool settings that should trigger UI re-renders
+    const [activeTool, setActiveTool] = useState<Tool>('brush');
     const [color, setColor] = useState('#263238');
     const [brushSize, setBrushSize] = useState(3);
-    const [opacity, setOpacity] = useState(1.0);
-    const [hardness, setHardness] = useState(0.6);
     const [frameRatioKey, setFrameRatioKey] = useState('1:1');
     const [customRatio, setCustomRatio] = useState('16:10');
     const [isCustomRatioValid, setIsCustomRatioValid] = useState(true);
     const [promptText, setPromptText] = useState('');
+    const [history, setHistory] = useState<ImageData[]>([]);
+    const [redoHistory, setRedoHistory] = useState<ImageData[]>([]);
 
     const redrawCanvasFromHistory = useCallback(() => {
         if (!contextRef.current || !canvasRef.current) return;
@@ -431,7 +423,7 @@ export const Whiteboard: React.FC<WhiteboardProps> = ({ isOpen, onClose, onGener
 
     const resizeCanvas = useCallback(() => {
         const canvas = canvasRef.current;
-        if (!canvas || !canvas.parentElement?.parentElement) return; // parent is canvas area div
+        if (!canvas || !canvas.parentElement?.parentElement) return;
         
         const context = canvas.getContext('2d');
         const container = canvas.parentElement.parentElement;
@@ -439,13 +431,8 @@ export const Whiteboard: React.FC<WhiteboardProps> = ({ isOpen, onClose, onGener
         let ratio: number | null = FRAME_RATIOS[frameRatioKey];
         if (frameRatioKey === 'Custom') {
             const match = customRatio.match(/^(\d+(\.\d+)?):(\d+(\.\d+)?)$/);
-            if (match) {
-                ratio = parseFloat(match[1]) / parseFloat(match[3]);
-                setIsCustomRatioValid(true);
-            } else {
-                setIsCustomRatioValid(false);
-                ratio = null;
-            }
+            ratio = match ? parseFloat(match[1]) / parseFloat(match[3]) : null;
+            setIsCustomRatioValid(!!match);
         }
 
         const containerWidth = container.clientWidth - 32;
@@ -454,11 +441,8 @@ export const Whiteboard: React.FC<WhiteboardProps> = ({ isOpen, onClose, onGener
         let newHeight = containerHeight;
 
         if (ratio) {
-            if (containerWidth / containerHeight > ratio) {
-                newWidth = containerHeight * ratio;
-            } else {
-                newHeight = containerWidth / ratio;
-            }
+            newWidth = (containerWidth / containerHeight > ratio) ? containerHeight * ratio : containerWidth;
+            newHeight = (containerWidth / containerHeight > ratio) ? containerHeight : containerWidth / ratio;
         }
         
         canvas.style.width = `${newWidth}px`;
@@ -474,22 +458,15 @@ export const Whiteboard: React.FC<WhiteboardProps> = ({ isOpen, onClose, onGener
         }
     }, [frameRatioKey, customRatio, redrawCanvasFromHistory]);
     
-    // Robust canvas initialization
     useLayoutEffect(() => {
         if (!isOpen || !canvasRef.current || !whiteboardContainerRef.current) return;
-
         contextRef.current = canvasRef.current.getContext('2d');
         resizeCanvas();
-
-        const container = whiteboardContainerRef.current.querySelector('.flex-grow'); // target the main area
+        const container = whiteboardContainerRef.current.querySelector('.flex-grow');
         if (!container) return;
-
         const observer = new ResizeObserver(() => resizeCanvas());
         observer.observe(container);
-
-        return () => {
-            observer.disconnect();
-        };
+        return () => observer.disconnect();
     }, [isOpen, resizeCanvas]);
 
     useEffect(() => {
@@ -499,7 +476,7 @@ export const Whiteboard: React.FC<WhiteboardProps> = ({ isOpen, onClose, onGener
     const saveToHistory = useCallback(() => {
         if (!canvasRef.current || !contextRef.current) return;
         const imageData = contextRef.current.getImageData(0, 0, canvasRef.current.width, canvasRef.current.height);
-        setHistory(prev => [...prev.slice(-30), imageData]); // Capped history
+        setHistory(prev => [...prev.slice(-30), imageData]);
         setRedoHistory([]);
     }, []);
 
@@ -523,72 +500,60 @@ export const Whiteboard: React.FC<WhiteboardProps> = ({ isOpen, onClose, onGener
         const nextState = redoHistory[0];
         setHistory(prev => [...prev, nextState]);
         setRedoHistory(prev => prev.slice(1));
-        if (contextRef.current) {
-            contextRef.current.putImageData(nextState, 0, 0);
-        }
+        if (contextRef.current) contextRef.current.putImageData(nextState, 0, 0);
     }, [redoHistory]);
 
-    const getCoords = (e: React.MouseEvent): { x: number, y: number } | null => {
+    const getCoords = useCallback((e: React.MouseEvent): { x: number, y: number } | null => {
         if (!canvasRef.current) return null;
         const rect = canvasRef.current.getBoundingClientRect();
         return { x: e.clientX - rect.left, y: e.clientY - rect.top };
-    };
+    }, []);
 
-    const handleMouseDown = (e: React.MouseEvent) => {
-        if (!contextRef.current) return;
+    const handleMouseDown = useCallback((e: React.MouseEvent) => {
+        const context = contextRef.current;
         const coords = getCoords(e);
-        if (!coords) return;
+        if (!context || !coords) return;
         
         saveToHistory();
-        setIsDrawing(true);
-        setHasMoved(false);
+        isDrawing.current = true;
+        hasMoved.current = false;
         lastCoords.current = coords;
 
-        const context = contextRef.current;
         context.globalCompositeOperation = activeTool === 'eraser' ? 'destination-out' : 'source-over';
         context.strokeStyle = color;
         context.fillStyle = color;
         context.lineWidth = brushSize;
-        context.globalAlpha = opacity;
         context.lineCap = 'round';
         context.lineJoin = 'round';
 
-        if (activeTool === 'pencil') {
-            context.shadowColor = color;
-            context.shadowBlur = (1 - hardness) * brushSize * 1.5;
-        } else {
-            context.shadowBlur = 0;
-        }
-
         context.beginPath();
         context.moveTo(coords.x, coords.y);
-    };
+    }, [getCoords, saveToHistory, activeTool, color, brushSize]);
     
-    const handleMouseMove = (e: React.MouseEvent) => {
-        if (!isDrawing || !contextRef.current) return;
-        const coords = getCoords(e);
-        if (!coords) return;
-        
-        setHasMoved(true);
+    const handleMouseMove = useCallback((e: React.MouseEvent) => {
+        if (!isDrawing.current) return;
         const context = contextRef.current;
+        const coords = getCoords(e);
+        if (!context || !coords) return;
+        
+        hasMoved.current = true;
         context.lineTo(coords.x, coords.y);
         context.stroke();
-    };
+    }, [getCoords]);
     
-    const handleMouseUp = () => {
-        if (!isDrawing || !contextRef.current) return;
-        
+    const handleMouseUp = useCallback(() => {
+        if (!isDrawing.current) return;
         const context = contextRef.current;
-        if (!hasMoved) { // Draw a dot for single clicks
-            context.beginPath();
-            context.arc(lastCoords.current.x, lastCoords.current.y, brushSize / 2, 0, Math.PI * 2);
-            context.fill();
+        if (context) {
+            if (!hasMoved.current) { // Draw a dot for single clicks
+                context.beginPath();
+                context.arc(lastCoords.current.x, lastCoords.current.y, brushSize / 2, 0, Math.PI * 2);
+                context.fill();
+            }
+            context.closePath();
         }
-
-        context.closePath();
-        context.shadowBlur = 0; // Reset shadow blur
-        setIsDrawing(false);
-    };
+        isDrawing.current = false;
+    }, [brushSize]);
     
     const handleSave = useCallback(() => {
         if (!canvasRef.current) return;
@@ -627,54 +592,26 @@ export const Whiteboard: React.FC<WhiteboardProps> = ({ isOpen, onClose, onGener
             handleClearCanvas();
         } else {
             setActiveTool(tool);
-            // Set tool-specific defaults for better UX
-            if (tool === 'marker') {
-                setOpacity(0.75);
-                setHardness(1.0);
-            } else if (tool === 'pencil') {
-                setOpacity(1.0);
-                setHardness(0.6);
-            } else if (tool === 'pen' || tool === 'eraser') {
-                setOpacity(1.0);
-                setHardness(1.0);
-            }
         }
     }, [handleClearCanvas]);
 
-    // Keyboard Shortcuts
     useEffect(() => {
         if (!isOpen) return;
         const handleKeyDown = (e: KeyboardEvent) => {
-             if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement || e.target instanceof HTMLSelectElement) {
-                return; // Ignore shortcuts if typing in an input
-            }
+             if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement || e.target instanceof HTMLSelectElement) return;
             if (e.metaKey || e.ctrlKey) {
-                if (e.key === 'z') {
-                    e.preventDefault();
-                    if(e.shiftKey) handleRedo();
-                    else handleUndo();
-                }
-                if (e.key === 's') {
-                    e.preventDefault();
-                    handleSave();
-                }
+                if (e.key === 'z') { e.preventDefault(); e.shiftKey ? handleRedo() : handleUndo(); }
+                if (e.key === 's') { e.preventDefault(); handleSave(); }
                 return;
             }
             const tool = TOOLS_CONFIG.find(t => t.hotkey === e.key.toLowerCase());
-            if (tool && !tool.disabled) {
-                e.preventDefault();
-                handleToolSelect(tool.id);
-            }
-            if (e.key === 'Delete' || e.key === 'Backspace') {
-                e.preventDefault();
-                handleClearCanvas();
-            }
+            if (tool) { e.preventDefault(); handleToolSelect(tool.id); }
+            if (e.key === 'Delete' || e.key === 'Backspace') { e.preventDefault(); handleClearCanvas(); }
         };
         window.addEventListener('keydown', handleKeyDown);
         return () => window.removeEventListener('keydown', handleKeyDown);
     }, [isOpen, handleUndo, handleRedo, handleSave, handleToolSelect, handleClearCanvas]);
 
-    // Canvas Cursor
     useEffect(() => {
         if (canvasRef.current) {
             const toolConfig = TOOLS_CONFIG.find(t => t.id === activeTool);
@@ -682,16 +619,15 @@ export const Whiteboard: React.FC<WhiteboardProps> = ({ isOpen, onClose, onGener
         }
     }, [activeTool]);
 
-    const ToolButton = ({ id, icon: Icon, type, disabled = false }: { id: Tool; icon: React.ElementType; type: string, disabled?: boolean }) => {
+    const ToolButton = ({ id, icon: Icon, type }: { id: Tool; icon: React.ElementType; type: string }) => {
         const isSettingsVisible = (type === 'brush' || type === 'eraser') && activeTool === id;
         return (
             <div className="relative group">
                 <button 
                   onClick={() => handleToolSelect(id)} 
-                  className={`p-3 rounded-xl transition-colors duration-200 ${activeTool === id && !disabled ? 'bg-blue-100 text-blue-600' : 'hover:bg-gray-100 text-gray-600'} ${disabled ? 'opacity-40 cursor-not-allowed' : ''}`}
+                  className={`p-3 rounded-xl transition-colors duration-200 ${activeTool === id ? 'bg-blue-100 text-blue-600' : 'hover:bg-gray-100 text-gray-600'}`}
                   aria-label={id}
-                  disabled={disabled}
-                  title={disabled ? `${id} (coming soon)` : id}
+                  title={id}
                 >
                     <Icon className="w-6 h-6" />
                 </button>
@@ -701,19 +637,6 @@ export const Whiteboard: React.FC<WhiteboardProps> = ({ isOpen, onClose, onGener
                             <label className="text-xs font-medium text-gray-600 flex justify-between">Size <span>{brushSize}</span></label>
                             <input type="range" min="1" max="64" value={brushSize} onChange={e => setBrushSize(Number(e.target.value))} className="w-full h-1 bg-gray-200 rounded-lg appearance-none cursor-pointer range-sm" />
                         </div>
-                        {type === 'brush' && <>
-                            <div>
-                                <label className="text-xs font-medium text-gray-600 flex justify-between">Opacity <span>{Math.round(opacity * 100)}%</span></label>
-                                <input type="range" min="0.05" max="1" step="0.05" value={opacity} onChange={e => setOpacity(Number(e.target.value))} className="w-full h-1 bg-gray-200 rounded-lg appearance-none cursor-pointer range-sm" />
-                            </div>
-                            {/* Only show hardness for pencil */}
-                            {activeTool === 'pencil' && (
-                                <div>
-                                    <label className="text-xs font-medium text-gray-600 flex justify-between">Hardness <span>{Math.round(hardness * 100)}%</span></label>
-                                    <input type="range" min="0" max="1" step="0.05" value={hardness} onChange={e => setHardness(Number(e.target.value))} className="w-full h-1 bg-gray-200 rounded-lg appearance-none cursor-pointer range-sm" />
-                                </div>
-                            )}
-                        </>}
                     </div>
                 )}
             </div>
@@ -721,16 +644,16 @@ export const Whiteboard: React.FC<WhiteboardProps> = ({ isOpen, onClose, onGener
     }
     
     return (
-        <div className={`fixed inset-0 z-40 transition-opacity duration-400 ease-in-out ${isOpen ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}>
+        <div className={`fixed inset-0 z-40 flex items-center justify-center transition-opacity duration-300 ease-in-out ${isOpen ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}>
             <div className="absolute inset-0 bg-black/20 backdrop-blur-sm" onClick={onClose}></div>
-            <div ref={whiteboardContainerRef} className={`fixed bottom-0 left-0 right-0 bg-gray-50 rounded-t-3xl shadow-2xl flex flex-col transition-transform duration-400 ease-in-out ${isOpen ? 'translate-y-0' : 'translate-y-full'}`} style={{ height: '92vh' }}>
+            <div ref={whiteboardContainerRef} className={`relative bg-gray-50 rounded-2xl shadow-2xl flex flex-col transition-all duration-300 ease-in-out w-[95vw] h-[90vh] max-w-7xl max-h-[900px] ${isOpen ? 'scale-100 opacity-100' : 'scale-95 opacity-0'}`}>
                 {/* Header */}
                 <header className="flex-shrink-0 p-4 border-b border-gray-200 flex items-center justify-between text-gray-600">
                     <button onClick={onClose} aria-label="Close" className="p-2 rounded-full hover:bg-gray-100"><X className="w-5 h-5"/></button>
                     <div className="text-center flex items-center gap-2">
                         <h2 className="text-lg font-semibold text-gray-800">Imagine Anything</h2>
                         <div className="flex items-center gap-1">
-                            <select value={frameRatioKey} onChange={e => setFrameRatioKey(e.target.value)} title="Frame Ratio" className="text-sm text-gray-500 bg-transparent border-none focus:ring-0 cursor-pointer p-0 pr-6 appearance-none bg-no-repeat bg-right" style={{backgroundImage: `url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%236b7280' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3e%3c/svg%3e")`}}>
+                            <select value={frameRatioKey} onChange={(e) => setFrameRatioKey(e.target.value)} title="Frame Ratio" className="text-sm text-gray-500 bg-transparent border-none focus:ring-0 cursor-pointer p-0 pr-6 appearance-none bg-no-repeat bg-right" style={{backgroundImage: `url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%236b7280' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3e%3c/svg%3e")`}}>
                                {Object.keys(FRAME_RATIOS).map(r => <option key={r} value={r}>{r}</option>)}
                             </select>
                             {frameRatioKey === 'Custom' && (
@@ -756,7 +679,8 @@ export const Whiteboard: React.FC<WhiteboardProps> = ({ isOpen, onClose, onGener
                     {/* Left Toolbar */}
                     <aside className="absolute top-4 left-4 z-10">
                         <div className="bg-white/80 backdrop-blur-md p-2 rounded-2xl shadow-md flex flex-col gap-2 border border-gray-200/50">
-                            {TOOLS_CONFIG.map(({ id, icon, type, disabled }) => <ToolButton key={id} id={id} icon={icon} type={type} disabled={disabled} />)}
+                            {/* FIX: Using argument destructuring in the map callback to resolve a TypeScript inference issue. */}
+                            {TOOLS_CONFIG.map(({ id, icon, type }) => <ToolButton key={id} id={id} icon={icon} type={type} />)}
                         </div>
                     </aside>
                     
