@@ -3,7 +3,8 @@
 import React, { useState, useRef, useEffect, useCallback, useReducer } from 'react';
 import { AlertTriangle } from 'lucide-react';
 import { Message, AttachedFile } from './types';
-import { isApiKeyConfigured, generateResponseStream } from './services/geminiService';
+// FIX: Removed unused 'isApiKeyConfigured' import which caused an error.
+import { generateResponseStream } from './services/geminiService';
 import { Header, InputArea, MessageBubble, NewPromptButton, Toast, Whiteboard, GenerationModeToggle, PromptSuggestions } from './components';
 import type { Content } from '@google/genai';
 
@@ -108,7 +109,6 @@ function appReducer(state: AppState, action: AppAction): AppState {
         case 'START_CHAT': return { ...state, view: 'chat' };
         case 'SET_MESSAGES': return { ...state, messages: action.payload };
         case 'ADD_MESSAGE': return { ...state, messages: [...state.messages, action.payload] };
-        // FIX: Replaced UPDATE_LAST_MESSAGE with type-safe alternatives
         case 'UPDATE_STREAMING_MESSAGE': {
             const newMessages = [...state.messages];
             const lastMessage = newMessages[newMessages.length - 1];
@@ -153,9 +153,8 @@ export default function App() {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   useEffect(() => {
-    // The initial API key check was removed from here. 
-    // It caused an error banner on deployments where client-side env vars aren't available on load.
-    // The check is now handled gracefully inside `generateResponseStream` when a message is sent.
+    // API key check is handled by the geminiService on each call,
+    // providing a more robust error handling mechanism.
   }, []);
 
   useEffect(() => {
@@ -312,6 +311,8 @@ export default function App() {
     dispatch({ type: 'SET_INPUT', payload: '' });
     dispatch({ type: 'SET_ATTACHED_FILES', payload: [] });
     dispatch({ type: 'SET_PROCESSING', payload: true });
+    // FIX: Clear previous API key errors when a new request is sent.
+    dispatch({ type: 'SET_API_KEY_ERROR', payload: false });
 
     const assistantMessagePlaceholder: Message = { id: `asst-${crypto.randomUUID()}`, role: 'assistant', type: 'chat', content: '' };
     dispatch({ type: 'ADD_MESSAGE', payload: assistantMessagePlaceholder });
@@ -343,7 +344,12 @@ export default function App() {
 
     } catch (error) {
        console.error("Failed to get AI response:", error);
-       const errorMessage: Message = { id: `err-${crypto.randomUUID()}`, role: 'assistant', type: 'chat', content: 'Sorry, an unexpected error occurred.' };
+       // FIX: Improved error handling to detect API key issues and update the UI accordingly.
+       const errorMessageText = error instanceof Error ? error.message : 'Sorry, an unexpected error occurred.';
+       if (error instanceof Error && (error.message.includes("API key") || error.message.includes("API_KEY"))) {
+           dispatch({ type: 'SET_API_KEY_ERROR', payload: true });
+       }
+       const errorMessage: Message = { id: `err-${crypto.randomUUID()}`, role: 'assistant', type: 'chat', content: errorMessageText };
        dispatch({ type: 'REPLACE_LAST_MESSAGE', payload: errorMessage });
     } finally {
       dispatch({ type: 'SET_PROCESSING', payload: false });
