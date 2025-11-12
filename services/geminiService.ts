@@ -193,7 +193,7 @@ export async function* generateResponseStream(
         const contents: Content[] = [...history, userMessageContent];
 
         const stream = await ai.models.generateContentStream({
-            model: 'gemini-2.5-pro',
+            model: 'gemini-2.5-flash',
             contents: contents,
             config: {
                 systemInstruction: systemInstruction,

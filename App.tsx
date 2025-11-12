@@ -2,9 +2,9 @@
 
 import React, { useState, useRef, useEffect, useCallback, useReducer } from 'react';
 import { AlertTriangle, Settings } from 'lucide-react';
-import { Message, AttachedFile } from './types';
+import { Message, AttachedFile, User } from './types';
 import { generateResponseStream } from './services/geminiService';
-import { Header, InputArea, MessageBubble, NewPromptButton, Toast, Whiteboard, GenerationModeToggle, PromptSuggestions, ApiKeyModal } from './components';
+import { Header, InputArea, MessageBubble, Toast, Whiteboard, GenerationModeToggle, PromptSuggestions, ApiKeyModal, LoginPage } from './components';
 import type { Content } from '@google/genai';
 
 // --- Web Speech API Types for TypeScript ---
@@ -137,10 +137,10 @@ function appReducer(state: AppState, action: AppAction): AppState {
         case 'SET_TOAST': return { ...state, toast: action.payload };
         case 'SET_ATTACHED_FILES': return { ...state, attachedFiles: action.payload };
         case 'SET_LISTENING': return { ...state, isListening: action.payload };
-        case 'SET_WHITEBOARD_OPEN': return { ...state, isWhiteboardOpen: action.payload };
+        case 'SET_WHITEBOARD_OPEN': return { ...state, isWhiteboardOpen: false };
         case 'SET_GENERATION_MODE': return { ...state, generationMode: action.payload };
         case 'SET_API_KEY_MODAL_OPEN': return { ...state, isApiKeyModalOpen: action.payload };
-        case 'RESET_STATE': return { ...initialState, apiKeyError: state.apiKeyError };
+        case 'RESET_STATE': return { ...initialState, apiKeyError: state.apiKeyError, view: 'landing' };
         default: return state;
     }
 }
@@ -151,9 +151,23 @@ export default function App() {
   const [state, dispatch] = useReducer(appReducer, initialState);
   const { view, messages, history, input, isProcessing, expandedThinking, copiedId, apiKeyError, conversationPhase, promptGenerated, toast, attachedFiles, isListening, isWhiteboardOpen, generationMode, isApiKeyModalOpen } = state;
 
+  const [user, setUser] = useState<User | null>(null);
+
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const recognitionRef = useRef<SpeechRecognition | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  useEffect(() => {
+    try {
+        const storedUser = localStorage.getItem('user');
+        if (storedUser) {
+            setUser(JSON.parse(storedUser));
+        }
+    } catch (e) {
+        console.error("Failed to parse user from localStorage", e);
+        localStorage.removeItem('user');
+    }
+  }, []);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -169,6 +183,22 @@ export default function App() {
       dispatch({ type: 'SET_API_KEY_ERROR', payload: false });
       showToast('API Key saved successfully!', 'success');
   }, [showToast]);
+
+  const handleLogin = () => {
+    // This is a mock login. In a real app, this would involve an OAuth flow.
+    const mockUser = { name: "Alex Johnson", email: "alex.j@example.com" };
+    localStorage.setItem('user', JSON.stringify(mockUser));
+    setUser(mockUser);
+    showToast(`Welcome, ${mockUser.name}!`, 'success');
+  };
+
+  const handleLogout = () => {
+      localStorage.removeItem('user');
+      setUser(null);
+      dispatch({ type: 'RESET_STATE' });
+      showToast('You have been logged out.', 'success');
+  };
+
 
   useEffect(() => {
     const SpeechRecognitionAPI = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
@@ -218,20 +248,6 @@ export default function App() {
       console.error('Failed to copy text: ', err);
       showToast('Failed to copy prompt.', 'error');
     }
-  }, [showToast]);
-  
-  const handleShare = useCallback(async () => {
-      if (!navigator.clipboard) {
-          showToast('Clipboard access is not available.', 'error');
-          return;
-      }
-      try {
-          await navigator.clipboard.writeText('https://prompter-pro-ahamease.vercel.app/');
-          showToast('Link copied to clipboard!', 'success');
-      } catch (err) {
-          console.error('Failed to copy link:', err);
-          showToast('Could not copy link.', 'error');
-      }
   }, [showToast]);
 
     const handleFileChange = (files: FileList | null) => {
@@ -388,10 +404,19 @@ export default function App() {
       }
   }, []);
 
+  if (!user) {
+    return (
+        <>
+            <Toast toast={toast} onDismiss={() => dispatch({ type: 'SET_TOAST', payload: null })} />
+            <LoginPage onLogin={handleLogin} />
+        </>
+    );
+  }
+
   return (
     <>
       <div className="flex flex-col min-h-screen max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 box-border">
-        <Header onShare={handleShare} onOpenSettings={() => dispatch({ type: 'SET_API_KEY_MODAL_OPEN', payload: true })} />
+        <Header user={user} onLogout={handleLogout} onOpenSettings={() => dispatch({ type: 'SET_API_KEY_MODAL_OPEN', payload: true })} onNewChat={handleReset} />
         
         <Toast toast={toast} onDismiss={() => dispatch({ type: 'SET_TOAST', payload: null })} />
 
@@ -470,30 +495,26 @@ export default function App() {
               </div>
               <div className="fixed bottom-0 left-0 right-0 bg-gradient-to-t from-[hsl(240,20%,99%)] via-[hsl(240,20%,99%)] to-transparent pointer-events-none h-48">
                   <div className="absolute bottom-6 w-full px-4 flex justify-center">
-                      {promptGenerated ? (
-                         <NewPromptButton onClick={handleReset} />
-                      ) : (
-                         <div className="w-full max-w-3xl">
-                             <GenerationModeToggle mode={generationMode} setMode={handleModeChange} />
-                             <InputArea 
-                                  input={input} 
-                                  setInput={(val) => dispatch({ type: 'SET_INPUT', payload: val })} 
-                                  handleSend={handleSend} 
-                                  handleKeyPress={handleKeyPress} 
-                                  isProcessing={isProcessing} 
-                                  apiKeyError={apiKeyError}
-                                  attachedFiles={attachedFiles}
-                                  onFileChange={handleFileChange}
-                                  onRemoveFile={removeFile}
-                                  onToggleListening={handleToggleListening}
-                                  isListening={isListening}
-                                  isSpeechRecognitionSupported={!!recognitionRef.current}
-                                  onAnnotate={handleAnnotate}
-                                  textareaRef={textareaRef}
-                             />
-                            <PromptSuggestions onSuggestionClick={handleSuggestionClick} />
-                         </div>
-                      )}
+                     <div className="w-full max-w-3xl">
+                         <GenerationModeToggle mode={generationMode} setMode={handleModeChange} />
+                         <InputArea 
+                              input={input} 
+                              setInput={(val) => dispatch({ type: 'SET_INPUT', payload: val })} 
+                              handleSend={handleSend} 
+                              handleKeyPress={handleKeyPress} 
+                              isProcessing={isProcessing} 
+                              apiKeyError={apiKeyError}
+                              attachedFiles={attachedFiles}
+                              onFileChange={handleFileChange}
+                              onRemoveFile={removeFile}
+                              onToggleListening={handleToggleListening}
+                              isListening={isListening}
+                              isSpeechRecognitionSupported={!!recognitionRef.current}
+                              onAnnotate={handleAnnotate}
+                              textareaRef={textareaRef}
+                         />
+                        <PromptSuggestions onSuggestionClick={handleSuggestionClick} />
+                     </div>
                   </div>
               </div>
           </div>

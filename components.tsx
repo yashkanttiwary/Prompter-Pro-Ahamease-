@@ -3,9 +3,9 @@
 import React, { useRef, useState, useEffect, useCallback, memo } from 'react';
 import { 
     Copy, Check, ChevronDown, ChevronRight, RefreshCw, CheckCircle, XCircle, 
-    Paperclip, Mic, X, FileText, MousePointer2, Brush, Eraser, Undo2, Redo2, Trash2, Settings
+    Paperclip, Mic, X, FileText, MousePointer2, Brush, Eraser, Undo2, Redo2, Trash2, Settings, Plus, LogOut
 } from 'lucide-react';
-import { Message, AttachedFile } from './types';
+import { Message, AttachedFile, User } from './types';
 
 
 // --- SVG Icons for Ahamease UI ---
@@ -18,6 +18,15 @@ export const SparkleIcon = ({ className = '' }: { className?: string }) => (
 export const SendIcon = ({ className = '' }: { className?: string }) => (
     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className={className}>
         <path d="M3.478 2.405a.75.75 0 00-.926.94l2.432 7.905H13.5a.75.75 0 010 1.5H4.984l-2.432 7.905a.75.75 0 00.926.94 60.519 60.519 0 0018.445-8.986.75.75 0 000-1.218A60.517 60.517 0 003.478 2.405z" />
+    </svg>
+);
+
+const GoogleIcon = () => (
+    <svg className="w-5 h-5" viewBox="0 0 48 48">
+        <path fill="#FFC107" d="M43.611 20.083H42V20H24v8h11.303c-1.649 4.657-6.08 8-11.303 8c-6.627 0-12-5.373-12-12s5.373-12 12-12c3.059 0 5.842 1.154 7.961 3.039l5.657-5.657C34.046 6.053 29.268 4 24 4C12.955 4 4 12.955 4 24s8.955 20 20 20s20-8.955 20-20c0-1.341-.138-2.65-.389-3.917z"></path>
+        <path fill="#FF3D00" d="M6.306 14.691l6.571 4.819C14.655 15.108 18.961 12 24 12c3.059 0 5.842 1.154 7.961 3.039l5.657-5.657C34.046 6.053 29.268 4 24 4C16.318 4 9.656 8.337 6.306 14.691z"></path>
+        <path fill="#4CAF50" d="M24 44c5.166 0 9.86-1.977 13.409-5.192l-6.19-5.238C29.211 35.091 26.715 36 24 36c-5.222 0-9.519-3.356-11.01-7.914l-6.522 5.025C9.505 39.556 16.227 44 24 44z"></path>
+        <path fill="#1976D2" d="M43.611 20.083H42V20H24v8h11.303c-.792 2.237-2.231 4.16-4.082 5.571l6.19 5.238C42.032 36.371 44 30.651 44 24c0-1.341-.138-2.65-.389-3.917z"></path>
     </svg>
 );
 
@@ -147,25 +156,39 @@ export const MessageBubble: React.FC<{ msg: Message; onCopy: (text: string, id: 
 };
 
 
-export const Header = memo(({ onShare, onOpenSettings }: { onShare: () => void; onOpenSettings: () => void; }) => (
+export const Header = memo(({ user, onLogout, onOpenSettings, onNewChat }: { user: User; onLogout: () => void; onOpenSettings: () => void; onNewChat: () => void; }) => (
     <header className="py-8 w-full">
         <div className="flex justify-between items-center">
             <div className="flex items-center gap-2 cursor-pointer">
                 <span className="text-3xl font-bold text-[--neutral-900]">Ahamease</span>
                 <SparkleIcon className="w-5 h-5 text-[--primary] -translate-y-2" />
             </div>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-4">
                  <button 
-                    onClick={onShare}
-                    aria-label="Share chat"
+                    onClick={onNewChat}
+                    aria-label="Start new chat"
                     className="hidden sm:inline-flex items-center gap-2 px-4 py-2 bg-white border border-[hsl(240,10%,85%)] rounded-full text-[--neutral-800] text-[15px] font-medium shadow-[var(--shadow-sm)] hover:bg-[--neutral-50] hover:shadow-[var(--shadow-md)] transition-all transform hover:-translate-y-0.5"
                 >
-                    Share
+                    <Plus className="w-4 h-4" />
+                    New Chat
                 </button>
+                <div className="flex items-center gap-2">
+                    <div className="text-right hidden sm:block">
+                        <p className="font-semibold text-sm text-[--neutral-800]">{user.name}</p>
+                        <p className="text-xs text-[--neutral-600]">{user.email}</p>
+                    </div>
+                    <button
+                        onClick={onLogout}
+                        aria-label="Logout"
+                        className="p-2.5 bg-white border border-[hsl(240,10%,85%)] rounded-full text-red-500 shadow-[var(--shadow-sm)] hover:bg-red-50 hover:shadow-[var(--shadow-md)] transition-all"
+                    >
+                        <LogOut className="w-5 h-5" />
+                    </button>
+                </div>
                  <button
                     onClick={onOpenSettings}
                     aria-label="Open settings"
-                    className="p-2 bg-white border border-[hsl(240,10%,85%)] rounded-full text-[--neutral-800] shadow-[var(--shadow-sm)] hover:bg-[--neutral-50] hover:shadow-[var(--shadow-md)] transition-all transform hover:-translate-y-0.5"
+                    className="p-2.5 bg-white border border-[hsl(240,10%,85%)] rounded-full text-[--neutral-800] shadow-[var(--shadow-sm)] hover:bg-[--neutral-50] hover:shadow-[var(--shadow-md)] transition-all"
                 >
                     <Settings className="w-5 h-5" />
                 </button>
@@ -351,17 +374,6 @@ export const PromptSuggestions = memo(({ onSuggestionClick }: { onSuggestionClic
     );
 });
 
-
-export const NewPromptButton = ({ onClick }: { onClick: () => void }) => (
-    <button
-        onClick={onClick}
-        className="pointer-events-auto inline-flex items-center gap-3 px-6 py-3 bg-white border border-[hsl(240,10%,85%)] rounded-full text-[--neutral-800] text-base font-medium shadow-[var(--shadow-md)] hover:bg-[--neutral-50] hover:shadow-[var(--shadow-lg)] transition-all transform hover:-translate-y-0.5"
-    >
-        <RefreshCw className="w-5 h-5 text-[--primary]" />
-        Start New Prompt
-    </button>
-);
-
 export const Toast = ({ toast, onDismiss }: { toast: { message: string, type: 'success' | 'error' } | null, onDismiss: () => void }) => {
     if (!toast) return null;
 
@@ -433,6 +445,36 @@ export const ApiKeyModal = ({ isOpen, onClose, onSave }: { isOpen: boolean; onCl
         </div>
     );
 };
+
+export const LoginPage = ({ onLogin }: { onLogin: () => void }) => {
+    return (
+        <div className="flex flex-col items-center justify-center min-h-screen">
+            <main className="flex-1 flex flex-col items-center justify-center text-center px-4">
+                <div 
+                    className="brand-icon w-24 h-24 mb-6 rounded-full"
+                    style={{ background: 'linear-gradient(135deg, hsl(280, 70%, 60%), hsl(200, 80%, 55%))' }}
+                ></div>
+                <h1 className="text-4xl sm:text-5xl font-bold text-[--neutral-900] tracking-tight">Welcome to Ahamease</h1>
+                <p className="mt-4 max-w-xl text-lg text-[--neutral-700]">
+                    Your AI-powered assistant for building production-ready, enterprise-grade prompts.
+                </p>
+                <div className="mt-10">
+                    <button 
+                        onClick={onLogin}
+                        className="inline-flex items-center gap-3 px-8 py-4 bg-white border border-[hsl(240,10%,85%)] rounded-lg text-[--neutral-800] text-lg font-semibold shadow-[var(--shadow-md)] hover:bg-[--neutral-50] hover:shadow-[var(--shadow-lg)] transition-all transform hover:-translate-y-1"
+                    >
+                        <GoogleIcon />
+                        Sign in with Google
+                    </button>
+                </div>
+            </main>
+            <footer className="py-6 text-center text-sm text-[--neutral-700]">
+                &copy; {new Date().getFullYear()} Ahamease. All rights reserved.
+            </footer>
+        </div>
+    );
+};
+
 
 // --- New Floating Whiteboard Component ---
 interface WhiteboardProps {
