@@ -364,13 +364,10 @@ const promptGenerationSchema = {
 
 export async function* generateResponseStream(history: Content[], newUserMessage: string, phase: 'INQUIRY' | 'GENERATION', files: AttachedFile[]): AsyncGenerator<string, { fullResponse: Message; newHistory: Content[] }, void> {
     const API_KEY = process.env.API_KEY;
-    if (!API_KEY) {
-        const errorMsg: Message = { id: `err-${crypto.randomUUID()}`, role: 'assistant', type: 'chat', content: "Gemini AI not initialized. API Key might be missing." };
-        yield errorMsg.content;
-        return { fullResponse: errorMsg, newHistory: history };
-    }
     
     // Initialize the AI client just-in-time.
+    // The explicit API key check has been removed. If API_KEY is missing,
+    // the SDK will throw an error on the API call, which is caught below.
     const ai = new GoogleGenAI({ apiKey: API_KEY });
 
     const messageParts: ContentPart[] = [];
