@@ -1,4 +1,5 @@
 
+
 import React, { useState, useRef, useEffect, useCallback, useReducer } from 'react';
 import { AlertTriangle } from 'lucide-react';
 import { Message, AttachedFile } from './types';
@@ -222,7 +223,7 @@ export default function App() {
           return;
       }
       try {
-          await navigator.clipboard.writeText(window.location.href);
+          await navigator.clipboard.writeText('https://prompter-pro-ahamease.vercel.app/');
           showToast('Link copied to clipboard!', 'success');
       } catch (err) {
           console.error('Failed to copy link:', err);
@@ -297,24 +298,6 @@ export default function App() {
 
     const handleAnnotate = () => {
         dispatch({ type: 'SET_WHITEBOARD_OPEN', payload: true });
-    };
-
-    const handleWhiteboardGenerate = (imageDataUrl: string, prompt: string) => {
-        if (attachedFiles.length >= 5) {
-            showToast('You can attach a maximum of 5 files.', 'error');
-            return;
-        }
-        const newFile: AttachedFile = {
-            name: `drawing-${Date.now()}.png`,
-            mimeType: 'image/png',
-            content: imageDataUrl.split(',')[1], // Get base64 part
-            preview: imageDataUrl, // Use full data url for preview
-            isLoading: false,
-        };
-        dispatch({ type: 'SET_ATTACHED_FILES', payload: [...attachedFiles, newFile] });
-        dispatch({ type: 'SET_INPUT', payload: (input.trim() ? `${input.trim()} ${prompt}` : prompt).trim() });
-        dispatch({ type: 'SET_WHITEBOARD_OPEN', payload: false });
-        setTimeout(() => textareaRef.current?.focus(), 100);
     };
 
   const handleSend = useCallback(async () => {
@@ -494,7 +477,6 @@ export default function App() {
       <Whiteboard 
         isOpen={isWhiteboardOpen}
         onClose={() => dispatch({ type: 'SET_WHITEBOARD_OPEN', payload: false })}
-        onGenerate={handleWhiteboardGenerate}
       />
     </>
   );

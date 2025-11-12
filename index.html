@@ -177,6 +177,213 @@
       position: relative;
       z-index: 10;
   }
+
+  /* --- NEW FLOATING WHITEBOARD STYLES --- */
+  #whiteboard-container {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    width: 600px;
+    max-width: 90vw;
+    background: white;
+    border-radius: 16px;
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+    z-index: 10000;
+    flex-direction: column;
+    overflow: hidden;
+    transition: opacity 0.3s ease, transform 0.3s ease;
+  }
+
+  #whiteboard-container.hidden {
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(0.95);
+    pointer-events: none;
+  }
+
+  #whiteboard-container.visible {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1);
+    pointer-events: auto;
+  }
+  
+  .whiteboard-header {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    padding: 0.75rem 1.25rem;
+    cursor: move;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    user-select: none;
+  }
+
+  .whiteboard-header h3 {
+    margin: 0;
+    font-size: 1rem;
+    font-weight: 600;
+  }
+
+  .whiteboard-close {
+    background: none;
+    border: none;
+    color: white;
+    font-size: 1.5rem;
+    cursor: pointer;
+    padding: 0;
+    width: 32px;
+    height: 32px;
+    border-radius: 6px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background 0.2s;
+  }
+
+  .whiteboard-close:hover {
+    background: rgba(255, 255, 255, 0.2);
+  }
+
+  .whiteboard-toolbar {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    padding: 0.75rem;
+    background: #f8f9fa;
+  }
+
+  .tool-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.375rem;
+    padding: 0.5rem 0.75rem;
+    background: white;
+    border: 1px solid #dee2e6;
+    border-radius: 6px;
+    font-size: 0.875rem;
+    font-weight: 500;
+    color: #495057;
+    cursor: pointer;
+    transition: all 0.2s ease;
+  }
+
+  .tool-btn:hover:not(:disabled) {
+    border-color: #667eea;
+    background: #f8f9ff;
+  }
+
+  .tool-btn.active {
+    background: #667eea;
+    border-color: #667eea;
+    color: white;
+  }
+
+  .tool-btn:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+  }
+
+  .size-group {
+    display: flex;
+    gap: 0.5rem;
+    padding: 0.25rem;
+    background: white;
+    border-radius: 8px;
+    border: 1px solid #dee2e6;
+  }
+
+  .size-btn {
+    background: none;
+    border: none;
+    cursor: pointer;
+    padding: 0.5rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 6px;
+    transition: all 0.2s;
+    position: relative;
+  }
+
+  .size-btn:hover {
+    background: #f8f9fa;
+  }
+
+  .size-btn.active {
+    background: #667eea;
+  }
+
+  .size-btn .size-dot {
+    background: #495057;
+    border-radius: 50%;
+    transition: background 0.2s;
+  }
+
+  .size-btn.active .size-dot {
+    background: white;
+  }
+
+  .size-btn[data-size="2"] .size-dot { width: 4px; height: 4px; }
+  .size-btn[data-size="8"] .size-dot { width: 8px; height: 8px; }
+  .size-btn[data-size="15"] .size-dot { width: 12px; height: 12px; }
+
+  .custom-color-picker {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 2px;
+    border: 1px solid #dee2e6;
+    border-radius: 6px;
+    background-color: white;
+  }
+  
+  .custom-color-picker .color-swatch-container {
+    position: relative;
+    width: 24px;
+    height: 24px;
+  }
+  
+  .custom-color-picker .color-swatch {
+    width: 100%;
+    height: 100%;
+    border-radius: 4px;
+    cursor: pointer;
+  }
+  
+  .custom-color-picker input[type="color"] {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    opacity: 0;
+    cursor: pointer;
+  }
+  
+  .custom-color-picker .color-hex {
+    font-family: monospace;
+    font-size: 0.8125rem;
+    color: #495057;
+    padding-right: 0.5rem;
+  }
+  
+  .canvas-wrapper {
+    background: white;
+    flex: 1;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: 400px;
+    overflow: auto;
+    border-top: 1px solid #e9ecef;
+  }
+
+  #whiteboard-canvas {
+    border: none;
+    border-radius: 0 0 16px 16px;
+    cursor: crosshair;
+    touch-action: none;
+    background: white;
+  }
 </style>
 </head>
   <body>
