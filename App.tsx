@@ -1,11 +1,10 @@
 
 
 import React, { useState, useRef, useEffect, useCallback, useReducer } from 'react';
-import { AlertTriangle } from 'lucide-react';
+import { AlertTriangle, Settings } from 'lucide-react';
 import { Message, AttachedFile } from './types';
-// FIX: Removed unused 'isApiKeyConfigured' import which caused an error.
 import { generateResponseStream } from './services/geminiService';
-import { Header, InputArea, MessageBubble, NewPromptButton, Toast, Whiteboard, GenerationModeToggle, PromptSuggestions } from './components';
+import { Header, InputArea, MessageBubble, NewPromptButton, Toast, Whiteboard, GenerationModeToggle, PromptSuggestions, ApiKeyModal } from './components';
 import type { Content } from '@google/genai';
 
 // --- Web Speech API Types for TypeScript ---
@@ -63,6 +62,7 @@ type AppState = {
     isListening: boolean;
     isWhiteboardOpen: boolean;
     generationMode: 'PROMPT' | 'BUILD';
+    isApiKeyModalOpen: boolean;
 };
 
 type AppAction =
@@ -84,6 +84,7 @@ type AppAction =
     | { type: 'SET_LISTENING'; payload: boolean }
     | { type: 'SET_WHITEBOARD_OPEN'; payload: boolean }
     | { type: 'SET_GENERATION_MODE', payload: 'PROMPT' | 'BUILD' }
+    | { type: 'SET_API_KEY_MODAL_OPEN', payload: boolean }
     | { type: 'RESET_STATE' };
 
 const initialState: AppState = {
@@ -102,6 +103,7 @@ const initialState: AppState = {
     isListening: false,
     isWhiteboardOpen: false,
     generationMode: 'BUILD',
+    isApiKeyModalOpen: false,
 };
 
 function appReducer(state: AppState, action: AppAction): AppState {
@@ -137,6 +139,7 @@ function appReducer(state: AppState, action: AppAction): AppState {
         case 'SET_LISTENING': return { ...state, isListening: action.payload };
         case 'SET_WHITEBOARD_OPEN': return { ...state, isWhiteboardOpen: action.payload };
         case 'SET_GENERATION_MODE': return { ...state, generationMode: action.payload };
+        case 'SET_API_KEY_MODAL_OPEN': return { ...state, isApiKeyModalOpen: action.payload };
         case 'RESET_STATE': return { ...initialState, apiKeyError: state.apiKeyError };
         default: return state;
     }
@@ -146,16 +149,11 @@ function appReducer(state: AppState, action: AppAction): AppState {
 // --- Main App Component ---
 export default function App() {
   const [state, dispatch] = useReducer(appReducer, initialState);
-  const { view, messages, history, input, isProcessing, expandedThinking, copiedId, apiKeyError, conversationPhase, promptGenerated, toast, attachedFiles, isListening, isWhiteboardOpen, generationMode } = state;
+  const { view, messages, history, input, isProcessing, expandedThinking, copiedId, apiKeyError, conversationPhase, promptGenerated, toast, attachedFiles, isListening, isWhiteboardOpen, generationMode, isApiKeyModalOpen } = state;
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const recognitionRef = useRef<SpeechRecognition | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
-
-  useEffect(() => {
-    // API key check is handled by the geminiService on each call,
-    // providing a more robust error handling mechanism.
-  }, []);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -165,6 +163,12 @@ export default function App() {
       dispatch({ type: 'SET_TOAST', payload: { message, type } });
       setTimeout(() => dispatch({ type: 'SET_TOAST', payload: null }), duration);
   }, []);
+  
+  const handleSaveApiKey = useCallback((key: string) => {
+      localStorage.setItem('gemini-api-key', key);
+      dispatch({ type: 'SET_API_KEY_ERROR', payload: false });
+      showToast('API Key saved successfully!', 'success');
+  }, [showToast]);
 
   useEffect(() => {
     const SpeechRecognitionAPI = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
@@ -300,7 +304,15 @@ export default function App() {
     };
 
   const handleSend = useCallback(async () => {
-    if ((!input.trim() && attachedFiles.filter(f => !f.isLoading).length === 0) || isProcessing || apiKeyError) return;
+    if ((!input.trim() && attachedFiles.filter(f => !f.isLoading).length === 0) || isProcessing) return;
+
+    // Re-check for API key right before sending.
+    const key = localStorage.getItem('gemini-api-key') || process.env.API_KEY;
+    if (!key) {
+        dispatch({ type: 'SET_API_KEY_ERROR', payload: true });
+        return;
+    }
+
 
     const userMessage: Message = { id: `user-${crypto.randomUUID()}`, role: 'user', content: input.trim(), type: 'chat' };
     dispatch({ type: 'ADD_MESSAGE', payload: userMessage });
@@ -311,7 +323,6 @@ export default function App() {
     dispatch({ type: 'SET_INPUT', payload: '' });
     dispatch({ type: 'SET_ATTACHED_FILES', payload: [] });
     dispatch({ type: 'SET_PROCESSING', payload: true });
-    // FIX: Clear previous API key errors when a new request is sent.
     dispatch({ type: 'SET_API_KEY_ERROR', payload: false });
 
     const assistantMessagePlaceholder: Message = { id: `asst-${crypto.randomUUID()}`, role: 'assistant', type: 'chat', content: '' };
@@ -344,7 +355,6 @@ export default function App() {
 
     } catch (error) {
        console.error("Failed to get AI response:", error);
-       // FIX: Improved error handling to detect API key issues and update the UI accordingly.
        const errorMessageText = error instanceof Error ? error.message : 'Sorry, an unexpected error occurred.';
        if (error instanceof Error && (error.message.includes("API key") || error.message.includes("API_KEY"))) {
            dispatch({ type: 'SET_API_KEY_ERROR', payload: true });
@@ -354,7 +364,7 @@ export default function App() {
     } finally {
       dispatch({ type: 'SET_PROCESSING', payload: false });
     }
-  }, [input, isProcessing, apiKeyError, conversationPhase, view, attachedFiles, history, generationMode]);
+  }, [input, isProcessing, conversationPhase, view, attachedFiles, history, generationMode]);
 
   const handleKeyPress = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === 'Enter' && !e.shiftKey) {
@@ -381,18 +391,27 @@ export default function App() {
   return (
     <>
       <div className="flex flex-col min-h-screen max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 box-border">
-        <Header onShare={handleShare} />
+        <Header onShare={handleShare} onOpenSettings={() => dispatch({ type: 'SET_API_KEY_MODAL_OPEN', payload: true })} />
         
         <Toast toast={toast} onDismiss={() => dispatch({ type: 'SET_TOAST', payload: null })} />
 
         {apiKeyError && (
           <div className="bg-red-100 border-l-4 border-red-500 text-red-700 p-4 rounded-md shadow-sm my-4" role="alert">
-            <div className="flex items-center">
-              <AlertTriangle className="w-6 h-6 mr-3"/>
-              <div>
-                <p className="font-bold">Configuration Error</p>
-                <p>The Gemini API key is missing or invalid. Please ensure it is configured correctly.</p>
-              </div>
+            <div className="flex items-center justify-between">
+                <div className="flex items-center">
+                    <AlertTriangle className="w-6 h-6 mr-3"/>
+                    <div>
+                        <p className="font-bold">Configuration Error</p>
+                        <p>The Gemini API key is missing or invalid. Please add your key in settings.</p>
+                    </div>
+                </div>
+                <button
+                    onClick={() => dispatch({ type: 'SET_API_KEY_MODAL_OPEN', payload: true })}
+                    className="ml-4 px-3 py-1.5 bg-red-500 text-white rounded-md text-sm font-semibold hover:bg-red-600 transition-colors flex items-center gap-2 whitespace-nowrap"
+                >
+                    <Settings className="w-4 h-4" />
+                    Set API Key
+                </button>
             </div>
           </div>
         )}
@@ -480,6 +499,11 @@ export default function App() {
           </div>
         )}
       </div>
+      <ApiKeyModal
+        isOpen={isApiKeyModalOpen}
+        onClose={() => dispatch({ type: 'SET_API_KEY_MODAL_OPEN', payload: false })}
+        onSave={handleSaveApiKey}
+      />
       <Whiteboard 
         isOpen={isWhiteboardOpen}
         onClose={() => dispatch({ type: 'SET_WHITEBOARD_OPEN', payload: false })}

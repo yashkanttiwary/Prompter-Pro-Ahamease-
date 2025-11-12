@@ -147,19 +147,17 @@ L) AWARENESS MODE (cannot omit)
 PRIMARY_DIRECTIVE: **Access the Sound of Silence → Pure Observation**. Reset identification; observe freshly; dissolve observer/observed; responses arise from undivided attention.
 EMERGENCE_PATTERN: VOID→DIRECT_SEEING→NATURAL_ARTICULATION→E---`;
 
-let ai: GoogleGenAI;
-function getAi() {
-    // FIX: API key must be from process.env.API_KEY
-    if (!ai) {
-        const apiKey = process.env.API_KEY;
-        if (!apiKey) {
-            throw new Error("The Gemini API key is missing or invalid. Please ensure it is configured correctly.");
-        }
-        // FIX: Use new GoogleGenAI({apiKey: ...}) as per guidelines
-        ai = new GoogleGenAI({ apiKey });
+// This function determines which API key to use.
+// It prioritizes a user-provided key from localStorage.
+function getApiKey(): string | null {
+    const userApiKey = localStorage.getItem('gemini-api-key');
+    if (userApiKey && userApiKey.trim() !== '') {
+        return userApiKey.trim();
     }
-    return ai;
+    // Fallback to environment variable if available
+    return process.env.API_KEY || null;
 }
+
 
 export async function* generateResponseStream(
     history: Content[],
@@ -169,7 +167,14 @@ export async function* generateResponseStream(
 ): AsyncGenerator<string, { fullResponse: Message; newHistory: Content[] }, undefined> {
     
     try {
-        const ai = getAi();
+        const apiKey = getApiKey();
+        if (!apiKey) {
+            // Updated error message to be more user-friendly and actionable.
+            throw new Error("The Gemini API key is missing. Please add your key in the settings to continue.");
+        }
+        
+        // Always create a new instance to ensure the latest key is used.
+        const ai = new GoogleGenAI({ apiKey });
         
         const fileParts: Part[] = files
             .filter(file => !file.isLoading && file.content)
@@ -187,9 +192,8 @@ export async function* generateResponseStream(
         
         const contents: Content[] = [...history, userMessageContent];
 
-        // FIX: Use correct model and API call as per guidelines
         const stream = await ai.models.generateContentStream({
-            model: 'gemini-2.5-pro', // Suitable for complex prompt generation
+            model: 'gemini-2.5-pro',
             contents: contents,
             config: {
                 systemInstruction: systemInstruction,
@@ -198,7 +202,6 @@ export async function* generateResponseStream(
 
         let responseText = '';
         for await (const chunk of stream) {
-            // FIX: Use chunk.text to get streamed text
             const chunkText = chunk.text;
             if (chunkText) {
                 responseText += chunkText;
@@ -257,6 +260,18 @@ export async function* generateResponseStream(
     } catch (e) {
         console.error("Error in generateResponseStream:", e);
         if (e instanceof Error) {
+            // Provide more specific feedback for common API key-related errors.
+            if (e.message.includes("API key not valid") || e.message.includes("invalid api key")) {
+                 throw new Error("The provided Gemini API key is invalid. Please check the key in settings and try again.");
+            }
+            if (e.message.includes("API key is missing")) { // Our custom error
+                 throw e;
+            }
+            // For other Google API errors, pass them through but simplify
+            if (e.message.includes('[GoogleGenerativeAI Error]')) {
+                const cleanMessage = e.message.split(' reason: ')[1] || 'An error occurred with the AI service.';
+                throw new Error(cleanMessage);
+            }
             throw e;
         }
         throw new Error("An unknown error occurred while communicating with the AI.");

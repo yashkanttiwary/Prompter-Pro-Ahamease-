@@ -3,7 +3,7 @@
 import React, { useRef, useState, useEffect, useCallback, memo } from 'react';
 import { 
     Copy, Check, ChevronDown, ChevronRight, RefreshCw, CheckCircle, XCircle, 
-    Paperclip, Mic, X, FileText, MousePointer2, Brush, Eraser, Undo2, Redo2, Trash2
+    Paperclip, Mic, X, FileText, MousePointer2, Brush, Eraser, Undo2, Redo2, Trash2, Settings
 } from 'lucide-react';
 import { Message, AttachedFile } from './types';
 
@@ -147,20 +147,29 @@ export const MessageBubble: React.FC<{ msg: Message; onCopy: (text: string, id: 
 };
 
 
-export const Header = memo(({ onShare }: { onShare: () => void }) => (
+export const Header = memo(({ onShare, onOpenSettings }: { onShare: () => void; onOpenSettings: () => void; }) => (
     <header className="py-8 w-full">
         <div className="flex justify-between items-center">
             <div className="flex items-center gap-2 cursor-pointer">
                 <span className="text-3xl font-bold text-[--neutral-900]">Ahamease</span>
                 <SparkleIcon className="w-5 h-5 text-[--primary] -translate-y-2" />
             </div>
-            <button 
-                onClick={onShare}
-                aria-label="Share chat"
-                className="hidden sm:inline-flex items-center gap-2 px-4 py-2 bg-white border border-[hsl(240,10%,85%)] rounded-full text-[--neutral-800] text-[15px] font-medium shadow-[var(--shadow-sm)] hover:bg-[--neutral-50] hover:shadow-[var(--shadow-md)] transition-all transform hover:-translate-y-0.5"
-            >
-                Share
-            </button>
+            <div className="flex items-center gap-2">
+                 <button 
+                    onClick={onShare}
+                    aria-label="Share chat"
+                    className="hidden sm:inline-flex items-center gap-2 px-4 py-2 bg-white border border-[hsl(240,10%,85%)] rounded-full text-[--neutral-800] text-[15px] font-medium shadow-[var(--shadow-sm)] hover:bg-[--neutral-50] hover:shadow-[var(--shadow-md)] transition-all transform hover:-translate-y-0.5"
+                >
+                    Share
+                </button>
+                 <button
+                    onClick={onOpenSettings}
+                    aria-label="Open settings"
+                    className="p-2 bg-white border border-[hsl(240,10%,85%)] rounded-full text-[--neutral-800] shadow-[var(--shadow-sm)] hover:bg-[--neutral-50] hover:shadow-[var(--shadow-md)] transition-all transform hover:-translate-y-0.5"
+                >
+                    <Settings className="w-5 h-5" />
+                </button>
+            </div>
         </div>
     </header>
 ));
@@ -368,6 +377,59 @@ export const Toast = ({ toast, onDismiss }: { toast: { message: string, type: 's
             <button onClick={onDismiss} aria-label="Dismiss notification" className="ml-auto text-[--neutral-500] hover:text-[--neutral-800] flex-shrink-0">
                 <X className="w-5 h-5" />
             </button>
+        </div>
+    );
+};
+
+export const ApiKeyModal = ({ isOpen, onClose, onSave }: { isOpen: boolean; onClose: () => void; onSave: (key: string) => void; }) => {
+    const [apiKey, setApiKey] = useState('');
+
+    useEffect(() => {
+        if (isOpen) {
+            setApiKey(localStorage.getItem('gemini-api-key') || '');
+        }
+    }, [isOpen]);
+
+    if (!isOpen) return null;
+
+    const handleSave = () => {
+        onSave(apiKey);
+        onClose();
+    };
+
+    return (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center" onClick={onClose} role="dialog" aria-modal="true">
+            <div className="bg-white rounded-xl shadow-2xl w-full max-w-md p-6 m-4" onClick={e => e.stopPropagation()}>
+                <div className="flex justify-between items-center mb-4">
+                    <h2 className="text-xl font-bold text-[--neutral-900]">API Key Settings</h2>
+                    <button onClick={onClose} className="text-gray-400 hover:text-gray-600">
+                        <X className="w-6 h-6" />
+                    </button>
+                </div>
+                <p className="text-sm text-gray-600 mb-4">
+                    Enter your Gemini API key to use the app. Your key is saved locally in your browser and is never sent to our servers.
+                </p>
+                <div className="mb-4">
+                    <label htmlFor="apiKeyInput" className="block text-sm font-medium text-gray-700 mb-1">Gemini API Key</label>
+                    <input
+                        id="apiKeyInput"
+                        type="password"
+                        value={apiKey}
+                        onChange={e => setApiKey(e.target.value)}
+                        placeholder="Enter your API key"
+                        className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-[--primary] focus:border-[--primary] transition"
+                        autoComplete="off"
+                    />
+                </div>
+                <div className="flex justify-end gap-3">
+                    <button onClick={onClose} className="px-4 py-2 bg-gray-100 text-gray-800 rounded-md hover:bg-gray-200 transition">
+                        Cancel
+                    </button>
+                    <button onClick={handleSave} className="px-4 py-2 bg-[--primary] text-white rounded-md hover:bg-opacity-90 transition">
+                        Save Key
+                    </button>
+                </div>
+            </div>
         </div>
     );
 };
