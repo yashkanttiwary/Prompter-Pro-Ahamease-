@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect, useCallback, useReducer } from 'react';
 import { AlertTriangle, Settings } from 'lucide-react';
 import { Message, AttachedFile } from './types';
-import { generateResponseStream } from './services/geminiService';
+import { generateResponseStream, correctAndCompleteText } from './services/geminiService';
 import { Header, InputArea, MessageBubble, Toast, Whiteboard, GenerationModeToggle, PromptSuggestions, ApiKeyModal, ConfirmModal } from './components';
 import type { Content } from '@google/genai';
 
@@ -51,6 +51,7 @@ type AppState = {
     history: Content[];
     input: string;
     isProcessing: boolean;
+    isOrbProcessing: boolean;
     copiedId: string | null;
     apiKeyError: boolean;
     conversationPhase: 'INQUIRY' | 'GENERATION';
@@ -74,6 +75,7 @@ type AppAction =
     | { type: 'SET_HISTORY'; payload: Content[] }
     | { type: 'SET_INPUT'; payload: string }
     | { type: 'SET_PROCESSING'; payload: boolean }
+    | { type: 'SET_ORB_PROCESSING', payload: boolean }
     | { type: 'SET_COPIED_ID'; payload: string | null }
     | { type: 'SET_API_KEY_ERROR'; payload: boolean }
     | { type: 'SET_CONVERSATION_PHASE'; payload: 'INQUIRY' | 'GENERATION' }
@@ -95,6 +97,7 @@ const initialState: AppState = {
     history: [],
     input: '',
     isProcessing: false,
+    isOrbProcessing: false,
     copiedId: null,
     apiKeyError: false,
     conversationPhase: 'INQUIRY',
@@ -132,6 +135,7 @@ function appReducer(state: AppState, action: AppAction): AppState {
         case 'SET_HISTORY': return { ...state, history: action.payload };
         case 'SET_INPUT': return { ...state, input: action.payload };
         case 'SET_PROCESSING': return { ...state, isProcessing: action.payload };
+        case 'SET_ORB_PROCESSING': return { ...state, isOrbProcessing: action.payload };
         case 'SET_COPIED_ID': return { ...state, copiedId: action.payload };
         case 'SET_API_KEY_ERROR': return { ...state, apiKeyError: action.payload };
         case 'SET_CONVERSATION_PHASE': return { ...state, conversationPhase: action.payload };
@@ -162,7 +166,7 @@ function appReducer(state: AppState, action: AppAction): AppState {
 // --- Main App Component ---
 export default function App() {
   const [state, dispatch] = useReducer(appReducer, initialState);
-  const { view, messages, history, input, isProcessing, copiedId, apiKeyError, conversationPhase, promptGenerated, toast, attachedFiles, isListening, isWhiteboardOpen, generationMode, isApiKeyModalOpen, isConfirmModalOpen, areSuggestionsVisible } = state;
+  const { view, messages, history, input, isProcessing, isOrbProcessing, copiedId, apiKeyError, conversationPhase, promptGenerated, toast, attachedFiles, isListening, isWhiteboardOpen, generationMode, isApiKeyModalOpen, isConfirmModalOpen, areSuggestionsVisible } = state;
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const recognitionRef = useRef<SpeechRecognition | null>(null);
@@ -482,6 +486,22 @@ export default function App() {
     }
   }, [input, isProcessing, conversationPhase, view, attachedFiles, history, generationMode, showToast]);
 
+  const handleOrbClick = useCallback(async () => {
+    if (!input.trim() || isProcessing || isOrbProcessing) return;
+
+    dispatch({ type: 'SET_ORB_PROCESSING', payload: true });
+    try {
+        const correctedText = await correctAndCompleteText(input);
+        dispatch({ type: 'SET_INPUT', payload: correctedText });
+        textareaRef.current?.focus();
+    } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : 'An error occurred while improving your text.';
+        showToast(errorMessage, 'error');
+    } finally {
+        dispatch({ type: 'SET_ORB_PROCESSING', payload: false });
+    }
+  }, [input, isProcessing, isOrbProcessing, showToast]);
+
   const handleKeyPress = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
@@ -569,7 +589,9 @@ export default function App() {
                       setInput={(val) => dispatch({ type: 'SET_INPUT', payload: val })} 
                       handleSend={handleSend} 
                       handleKeyPress={handleKeyPress} 
-                      isProcessing={isProcessing} 
+                      isProcessing={isProcessing}
+                      isOrbProcessing={isOrbProcessing}
+                      onOrbClick={handleOrbClick}
                       apiKeyError={apiKeyError}
                       attachedFiles={attachedFiles}
                       onFileChange={handleFileChange}
@@ -608,7 +630,9 @@ export default function App() {
                         setInput={(val) => dispatch({ type: 'SET_INPUT', payload: val })} 
                         handleSend={handleSend} 
                         handleKeyPress={handleKeyPress} 
-                        isProcessing={isProcessing} 
+                        isProcessing={isProcessing}
+                        isOrbProcessing={isOrbProcessing}
+                        onOrbClick={handleOrbClick}
                         apiKeyError={apiKeyError}
                         attachedFiles={attachedFiles}
                         onFileChange={handleFileChange}

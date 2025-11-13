@@ -191,3 +191,51 @@ export async function* generateResponseStream(
         throw new Error("An unknown error occurred while communicating with the AI.");
     }
 }
+
+export async function correctAndCompleteText(text: string): Promise<string> {
+    try {
+        const apiKey = getApiKey();
+        if (!apiKey) {
+            throw new Error("The Gemini API key is missing. Please add your key in the settings to continue.");
+        }
+
+        const ai = new GoogleGenAI({ apiKey });
+
+        const systemInstruction = `You are an AI writing assistant. Your task is to correct any grammar, spelling, and punctuation errors in the user's text. Then, based on the context, logically complete the sentence or thought in a concise and natural way.
+        
+RULES:
+- Respond ONLY with the fully corrected and completed text.
+- Do not add any introductory phrases like "Here is the corrected text:" or any other commentary.
+- Do not wrap your response in quotes or markdown.
+- If the input text is already grammatically correct and complete, return it as is.
+- Keep the original tone and intent of the user's text.`;
+
+        const response = await ai.models.generateContent({
+            model: 'gemini-2.5-flash',
+            contents: [{ role: 'user', parts: [{ text }] }],
+            config: {
+                systemInstruction: systemInstruction,
+                temperature: 0.2, 
+            },
+        });
+
+        const resultText = response.text.trim();
+        
+        if (!resultText) {
+            throw new Error("The AI returned an empty response.");
+        }
+
+        return resultText;
+
+    } catch (e) {
+        console.error("Error in correctAndCompleteText:", e);
+        if (e instanceof Error) {
+            // Re-throw with a user-friendly message
+            if (e.message.includes("API key")) {
+                 throw new Error("Could not perform text correction due to an API key issue. Please check your settings.");
+            }
+            throw new Error("Failed to correct text. Please try again.");
+        }
+        throw new Error("An unknown error occurred while correcting the text.");
+    }
+}

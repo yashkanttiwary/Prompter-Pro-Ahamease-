@@ -2,7 +2,7 @@ import React, { useRef, useState, useEffect, useCallback, memo } from 'react';
 import { 
     Copy, Check, CheckCircle, XCircle, 
     Paperclip, Mic, X, FileText, Brush, Eraser, Undo2, Redo2, Trash2, Settings, Plus,
-    Lightbulb, Bot, RefreshCw
+    Lightbulb, Bot, RefreshCw, Loader2
 } from 'lucide-react';
 import { Message, AttachedFile, User } from './types';
 
@@ -21,8 +21,8 @@ export const SendIcon = ({ className = '' }: { className?: string }) => (
 );
 
 // --- Interactive Typing Orb Component ---
-const TypingIndicatorOrb = () => {
-    const orbRef = useRef<HTMLDivElement>(null);
+const TypingIndicatorOrb = ({ onClick, isProcessing }: { onClick: () => void; isProcessing: boolean; }) => {
+    const orbRef = useRef<HTMLButtonElement>(null);
 
     useEffect(() => {
         const orbEl = orbRef.current;
@@ -51,7 +51,28 @@ const TypingIndicatorOrb = () => {
         };
     }, []);
 
-    return <div ref={orbRef} className="typing-orb"></div>;
+    return (
+        <button
+            ref={orbRef}
+            onClick={onClick}
+            disabled={isProcessing}
+            className="typing-orb relative group disabled:cursor-not-allowed"
+            aria-label="Correct grammar and complete sentence"
+            title="Correct grammar and complete sentence"
+        >
+            {isProcessing && (
+                <div className="absolute inset-0 flex items-center justify-center bg-slate-200/50 rounded-full">
+                    <RefreshCw className="w-4 h-4 text-slate-600 animate-spin" />
+                </div>
+            )}
+            {!isProcessing && (
+                <div className="absolute bottom-full mb-2 w-max max-w-xs px-3 py-1.5 text-xs font-medium text-white bg-gray-900 rounded-lg shadow-sm opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-10">
+                    Fix & Complete
+                    <div className="absolute left-1/2 -translate-x-1/2 top-full w-0 h-0 border-x-4 border-x-transparent border-t-4 border-t-gray-900"></div>
+                </div>
+            )}
+        </button>
+    );
 };
 
 
@@ -130,14 +151,16 @@ export const MessageBubble: React.FC<{ msg: Message; onCopy: (text: string, id: 
   const hasContent = msg.content && msg.content.trim() !== '';
   const hasAttachments = msg.type === 'chat' && msg.attachedFiles && msg.attachedFiles.length > 0;
   
+  const isShowingGeneratingIndicator = isStreaming && !hasContent;
+
   return (
     <div className={`flex flex-col ${isUser ? 'items-end' : 'items-start'} animate-slide-in-bottom`}>
-      <div className={`message-bubble ${isUser ? 'is-user' : 'is-assistant'} max-w-3xl ${isUser ? 'w-fit' : 'w-full'} ${isUser ? 'bg-[#F1F2F5] text-[--neutral-800]' : 'bg-white text-[--neutral-800]'} shadow-[var(--shadow-md)]`}>
+      <div className={`message-bubble ${isUser ? 'is-user' : 'is-assistant'} max-w-3xl ${isUser || isShowingGeneratingIndicator ? 'w-fit' : 'w-full'} ${isUser ? 'bg-[#F1F2F5] text-[--neutral-800]' : 'bg-white text-[--neutral-800]'} shadow-[var(--shadow-md)]`}>
         <div className="p-5">
-           {isStreaming && !hasContent && (
-               <div className="flex items-center gap-2">
-                   <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-[--neutral-700]"></div>
-                   <span className="text-sm text-[--neutral-700]">Generating...</span>
+           {isShowingGeneratingIndicator && (
+               <div className="flex items-center gap-3">
+                   <Loader2 className="w-5 h-5 animate-spin text-slate-500" />
+                   <span className="text-sm font-medium text-slate-600">Generating...</span>
                </div>
            )}
            {hasContent && <SafeMarkdown text={msg.content} isStreaming={isStreaming} isUser={isUser} />}
@@ -273,7 +296,7 @@ const FilePreview = ({ files, onRemoveFile }: { files: AttachedFile[], onRemoveF
     );
 };
 
-export const InputArea = ({ input, setInput, handleSend, handleKeyPress, isProcessing, apiKeyError, attachedFiles, onFileChange, onRemoveFile, onToggleListening, isListening, isSpeechRecognitionSupported, textareaRef }: { input: string; setInput: (value: string) => void; handleSend: () => void; handleKeyPress: (e: React.KeyboardEvent<HTMLTextAreaElement>) => void; isProcessing: boolean; apiKeyError: boolean; attachedFiles: AttachedFile[]; onFileChange: (files: FileList | null) => void; onRemoveFile: (index: number) => void; onToggleListening: () => void; isListening: boolean; isSpeechRecognitionSupported: boolean; textareaRef: React.RefObject<HTMLTextAreaElement> }) => {
+export const InputArea = ({ input, setInput, handleSend, handleKeyPress, isProcessing, isOrbProcessing, onOrbClick, apiKeyError, attachedFiles, onFileChange, onRemoveFile, onToggleListening, isListening, isSpeechRecognitionSupported, textareaRef }: { input: string; setInput: (value: string) => void; handleSend: () => void; handleKeyPress: (e: React.KeyboardEvent<HTMLTextAreaElement>) => void; isProcessing: boolean; isOrbProcessing: boolean; onOrbClick: () => void; apiKeyError: boolean; attachedFiles: AttachedFile[]; onFileChange: (files: FileList | null) => void; onRemoveFile: (index: number) => void; onToggleListening: () => void; isListening: boolean; isSpeechRecognitionSupported: boolean; textareaRef: React.RefObject<HTMLTextAreaElement> }) => {
     const [isDraggingOver, setIsDraggingOver] = useState(false);
     const fileInputRef = useRef<HTMLInputElement>(null);
     const isTyping = input.trim().length > 0;
@@ -309,7 +332,7 @@ export const InputArea = ({ input, setInput, handleSend, handleKeyPress, isProce
                         <Plus className="w-5 h-5" />
                     </button>
                     <div className={`transition-all duration-300 ${isTyping ? 'w-8 opacity-100 mr-1' : 'w-0 opacity-0'}`}>
-                        {isTyping && <TypingIndicatorOrb />}
+                        {isTyping && <TypingIndicatorOrb onClick={onOrbClick} isProcessing={isOrbProcessing} />}
                     </div>
                     <input id="file-upload" type="file" multiple className="hidden" ref={fileInputRef} onChange={(e) => onFileChange(e.target.files)} accept="image/png, image/jpeg, image/webp, text/plain, application/pdf" />
                     
@@ -322,7 +345,7 @@ export const InputArea = ({ input, setInput, handleSend, handleKeyPress, isProce
                         className="flex-1 w-full border-none outline-none bg-transparent text-base font-normal leading-relaxed text-[--neutral-900] placeholder:text-slate-500 resize-none overflow-y-auto pr-2 custom-scrollbar"
                         style={{ minHeight: '3rem', maxHeight: '12rem', padding: '0.625rem 0' }} // 10px 0
                         rows={1}
-                        disabled={isProcessing || apiKeyError}
+                        disabled={isProcessing || isOrbProcessing || apiKeyError}
                     />
                     <div className="flex items-center">
                         <button 
