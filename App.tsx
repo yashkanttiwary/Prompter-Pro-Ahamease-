@@ -561,18 +561,18 @@ export default function App() {
         <Toast toast={toast} onDismiss={() => dispatch({ type: 'SET_TOAST', payload: null })} />
 
         {apiKeyError && (
-          <div className="bg-red-100 border-l-4 border-red-500 text-red-700 p-4 rounded-md shadow-sm my-4" role="alert">
+          <div className="bg-red-500/10 backdrop-blur-xl border border-red-500/20 text-red-900 p-4 rounded-xl shadow-lg my-4 animate-slide-in-bottom" role="alert">
             <div className="flex items-center justify-between">
                 <div className="flex items-center">
-                    <AlertTriangle className="w-6 h-6 mr-3"/>
+                    <AlertTriangle className="w-6 h-6 mr-3 text-red-500"/>
                     <div>
                         <p className="font-bold">Configuration Error</p>
-                        <p>The Gemini API key is missing or invalid. Please add your key in settings.</p>
+                        <p className="text-sm">The Gemini API key is missing or invalid. Please add your key in settings.</p>
                     </div>
                 </div>
                 <button
                     onClick={() => dispatch({ type: 'SET_API_KEY_MODAL_OPEN', payload: true })}
-                    className="ml-4 px-3 py-1.5 bg-red-500 text-white rounded-md text-sm font-semibold hover:bg-red-600 transition-colors flex items-center gap-2 whitespace-nowrap"
+                    className="ml-4 px-4 py-2 bg-red-500 text-white rounded-lg text-sm font-semibold hover:bg-red-600 transition-colors flex items-center gap-2 whitespace-nowrap shadow-md"
                     aria-label="Set API Key"
                 >
                     <Settings className="w-4 h-4" />

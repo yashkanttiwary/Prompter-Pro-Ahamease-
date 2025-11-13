@@ -589,15 +589,25 @@ export const ConfirmModal = ({ isOpen, onClose, onConfirm, title, description }:
     if (!isOpen) return null;
 
     return (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center" onClick={onClose} role="dialog" aria-modal="true" aria-labelledby="confirm-title">
-            <div className="bg-white rounded-xl shadow-2xl w-full max-w-sm p-6 m-4" onClick={e => e.stopPropagation()}>
-                <h2 id="confirm-title" className="text-xl font-bold text-[--neutral-900] mb-2">{title}</h2>
-                <p className="text-sm text-gray-600 mb-6">{description}</p>
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={onClose} role="dialog" aria-modal="true" aria-labelledby="confirm-title">
+            <div 
+                className="bg-white/70 backdrop-blur-2xl rounded-2xl shadow-2xl w-full max-w-sm p-6 border border-white/40 animate-slide-in-bottom" 
+                onClick={e => e.stopPropagation()}
+                style={{ animationDuration: '0.3s' }}
+            >
+                <h2 id="confirm-title" className="text-2xl font-bold text-slate-900 mb-3">{title}</h2>
+                <p className="text-sm text-slate-700 mb-6">{description}</p>
                 <div className="flex justify-end gap-3">
-                    <button onClick={onClose} className="px-4 py-2 bg-gray-100 text-gray-800 rounded-md hover:bg-gray-200 transition">
+                    <button 
+                        onClick={onClose} 
+                        className="px-5 py-2.5 bg-white/50 text-slate-800 font-medium rounded-lg hover:bg-white/80 transition-colors shadow-md border border-white/20"
+                    >
                         Cancel
                     </button>
-                    <button onClick={onConfirm} className="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 transition">
+                    <button 
+                        onClick={onConfirm} 
+                        className="px-5 py-2.5 bg-gradient-to-br from-red-500 to-orange-500 text-white font-semibold rounded-lg shadow-lg hover:scale-105 transition-transform duration-200"
+                    >
                         Confirm
                     </button>
                 </div>
@@ -699,11 +709,13 @@ export const Whiteboard: React.FC<WhiteboardProps> = ({ isOpen, onClose }) => {
                 x: e.clientX - rect.left,
                 y: e.clientY - rect.top,
             };
-            container.style.transform = 'none';
+            container.style.transform = 'none'; // Switch to absolute positioning
         };
 
         const drag = (e: MouseEvent) => {
             if (!isDragging.current) return;
+            // Prevent text selection while dragging
+            e.preventDefault();
             const x = e.clientX - dragOffset.current.x;
             const y = e.clientY - dragOffset.current.y;
             container.style.left = `${x}px`;
@@ -713,7 +725,8 @@ export const Whiteboard: React.FC<WhiteboardProps> = ({ isOpen, onClose }) => {
         const stopDrag = () => {
             isDragging.current = false;
         };
-
+        
+        // Use document to capture mouse events everywhere
         document.addEventListener('mousedown', startDrag);
         document.addEventListener('mousemove', drag);
         document.addEventListener('mouseup', stopDrag);
@@ -811,11 +824,15 @@ export const Whiteboard: React.FC<WhiteboardProps> = ({ isOpen, onClose }) => {
 
     const BRUSH_SIZES = [2, 8, 15];
 
+    if (!isOpen) return null;
+
     return (
-        <div id="whiteboard-container" ref={containerRef} className={isOpen ? 'visible flex' : 'hidden'} role="dialog" aria-labelledby="whiteboard-title">
+        <div id="whiteboard-container" ref={containerRef} role="dialog" aria-labelledby="whiteboard-title">
             <div className="whiteboard-header">
                 <h3 id="whiteboard-title">Whiteboard</h3>
-                <button className="whiteboard-close" aria-label="Close Whiteboard" onClick={onClose}>×</button>
+                <button className="whiteboard-close" aria-label="Close Whiteboard" onClick={onClose}>
+                    <X className="w-5 h-5" />
+                </button>
             </div>
             <div className="whiteboard-toolbar">
                 <div className="flex items-center gap-2 flex-wrap">

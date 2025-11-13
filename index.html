@@ -330,6 +330,75 @@
     -moz-user-select: none;
     -ms-user-select: none;
   }
+  
+  /* --- FLOATING WHITEBOARD STYLES --- */
+  #whiteboard-container {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 600px;
+    max-width: 90vw;
+    background-color: rgba(255, 255, 255, 0.7);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border: 1px solid rgba(255, 255, 255, 0.4);
+    border-radius: 1rem;
+    box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.2);
+    display: flex;
+    flex-direction: column;
+    z-index: 100;
+    animation: slide-in-bottom 0.3s ease-out;
+  }
+  .whiteboard-header {
+    padding: 0.75rem 1rem;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.4);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    cursor: grab;
+  }
+  .whiteboard-header:active { cursor: grabbing; }
+  .whiteboard-header h3 { font-size: 1.125rem; font-weight: 600; color: var(--neutral-900); }
+  .whiteboard-close {
+    background: transparent; border: none; font-size: 1.5rem; line-height: 1; color: var(--neutral-700);
+    cursor: pointer; transition: color 0.2s; padding: 0.25rem;
+  }
+  .whiteboard-close:hover { color: var(--neutral-900); }
+  .whiteboard-toolbar {
+    padding: 0.5rem;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.4);
+  }
+  .tool-btn {
+    display: inline-flex; align-items: center; gap: 0.5rem;
+    padding: 0.5rem 0.75rem;
+    border: none; background-color: rgba(255, 255, 255, 0.4); border-radius: 0.5rem;
+    font-size: 0.875rem; font-weight: 500; color: var(--neutral-800);
+    cursor: pointer; transition: all 0.2s;
+  }
+  .tool-btn:hover { background-color: rgba(255, 255, 255, 0.8); }
+  .tool-btn.active { background-color: var(--primary); color: white; }
+  .tool-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+  .canvas-wrapper { padding: 0.5rem; }
+  #whiteboard-canvas {
+    width: 100%; height: 400px;
+    background-color: var(--white);
+    border-radius: 0.75rem;
+    cursor: crosshair;
+  }
+  /* Toolbar specifics */
+  .size-group { display: inline-flex; align-items: center; gap: 0.25rem; margin: 0 0.5rem; }
+  .size-btn { display: flex; align-items: center; justify-content: center; width: 2rem; height: 2rem; border-radius: 50%; border: none; background-color: rgba(0,0,0,0.05); transition: background-color 0.2s; }
+  .size-btn .size-dot { background-color: var(--neutral-700); border-radius: 50%; }
+  .size-btn[data-size="2"] .size-dot { width: 4px; height: 4px; }
+  .size-btn[data-size="8"] .size-dot { width: 10px; height: 10px; }
+  .size-btn[data-size="15"] .size-dot { width: 16px; height: 16px; }
+  .size-btn.active { background-color: rgba(0,0,0,0.2); }
+  .custom-color-picker { position: relative; display: inline-flex; align-items: center; gap: 0.5rem; background-color: rgba(0,0,0,0.05); padding: 0.25rem 0.5rem; border-radius: 99px; }
+  .color-swatch-container { position: relative; width: 1.5rem; height: 1.5rem; }
+  .color-swatch { width: 100%; height: 100%; border-radius: 50%; border: 2px solid white; box-shadow: var(--shadow-sm); }
+  .custom-color-picker input[type="color"] { position: absolute; top: 0; left: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer; }
+  .color-hex { font-size: 0.75rem; font-family: monospace; color: var(--neutral-700); }
 
 </style>
 </head>
