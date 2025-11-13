@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect, useCallback, useReducer } from 'react';
 import { AlertTriangle, Settings } from 'lucide-react';
 import { Message, AttachedFile } from './types';
-import { generateResponseStream, correctAndCompleteText } from './services/geminiService';
+import { generateResponseStream, correctAndCompleteText, generatePromptSuggestions } from './services/geminiService';
 import { Header, InputArea, MessageBubble, Toast, Whiteboard, GenerationModeToggle, PromptSuggestions, ApiKeyModal, ConfirmModal } from './components';
 import type { Content } from '@google/genai';
 
@@ -63,7 +63,9 @@ type AppState = {
     generationMode: 'PROMPT' | 'BUILD';
     isApiKeyModalOpen: boolean;
     isConfirmModalOpen: boolean;
+    suggestions: string[];
     areSuggestionsVisible: boolean;
+    areSuggestionsLoading: boolean;
 };
 
 type AppAction =
@@ -88,7 +90,9 @@ type AppAction =
     | { type: 'SET_GENERATION_MODE', payload: 'PROMPT' | 'BUILD' }
     | { type: 'SET_API_KEY_MODAL_OPEN', payload: boolean }
     | { type: 'SET_CONFIRM_MODAL_OPEN', payload: boolean }
+    | { type: 'SET_SUGGESTIONS', payload: string[] }
     | { type: 'SET_SUGGESTIONS_VISIBLE', payload: boolean }
+    | { type: 'SET_SUGGESTIONS_LOADING', payload: boolean }
     | { type: 'RESET_STATE' };
 
 const initialState: AppState = {
@@ -109,7 +113,9 @@ const initialState: AppState = {
     generationMode: 'PROMPT',
     isApiKeyModalOpen: false,
     isConfirmModalOpen: false,
+    suggestions: [],
     areSuggestionsVisible: true,
+    areSuggestionsLoading: true,
 };
 
 function appReducer(state: AppState, action: AppAction): AppState {
@@ -156,8 +162,10 @@ function appReducer(state: AppState, action: AppAction): AppState {
         case 'SET_GENERATION_MODE': return { ...state, generationMode: action.payload };
         case 'SET_API_KEY_MODAL_OPEN': return { ...state, isApiKeyModalOpen: action.payload };
         case 'SET_CONFIRM_MODAL_OPEN': return { ...state, isConfirmModalOpen: action.payload };
+        case 'SET_SUGGESTIONS': return { ...state, suggestions: action.payload };
         case 'SET_SUGGESTIONS_VISIBLE': return { ...state, areSuggestionsVisible: action.payload };
-        case 'RESET_STATE': return { ...initialState, apiKeyError: state.apiKeyError, view: 'landing' };
+        case 'SET_SUGGESTIONS_LOADING': return { ...state, areSuggestionsLoading: action.payload };
+        case 'RESET_STATE': return { ...initialState, apiKeyError: state.apiKeyError, view: 'landing', areSuggestionsLoading: true };
         default: return state;
     }
 }
@@ -166,7 +174,7 @@ function appReducer(state: AppState, action: AppAction): AppState {
 // --- Main App Component ---
 export default function App() {
   const [state, dispatch] = useReducer(appReducer, initialState);
-  const { view, messages, history, input, isProcessing, isOrbProcessing, copiedId, apiKeyError, conversationPhase, promptGenerated, toast, attachedFiles, isListening, isWhiteboardOpen, generationMode, isApiKeyModalOpen, isConfirmModalOpen, areSuggestionsVisible } = state;
+  const { view, messages, history, input, isProcessing, isOrbProcessing, copiedId, apiKeyError, conversationPhase, promptGenerated, toast, attachedFiles, isListening, isWhiteboardOpen, generationMode, isApiKeyModalOpen, isConfirmModalOpen, suggestions, areSuggestionsVisible, areSuggestionsLoading } = state;
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const recognitionRef = useRef<SpeechRecognition | null>(null);
@@ -295,6 +303,17 @@ export default function App() {
       dispatch({ type: 'SET_API_KEY_ERROR', payload: false });
       showToast('API Key saved successfully!', 'success');
   }, [showToast]);
+
+  const fetchSuggestions = useCallback(async () => {
+    dispatch({ type: 'SET_SUGGESTIONS_LOADING', payload: true });
+    const newSuggestions = await generatePromptSuggestions();
+    dispatch({ type: 'SET_SUGGESTIONS', payload: newSuggestions });
+    dispatch({ type: 'SET_SUGGESTIONS_LOADING', payload: false });
+  }, []);
+
+  useEffect(() => {
+    fetchSuggestions();
+  }, [fetchSuggestions]);
 
   useEffect(() => {
     const SpeechRecognitionAPI = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
@@ -542,9 +561,9 @@ export default function App() {
 
   const confirmReset = useCallback(() => {
       dispatch({ type: 'RESET_STATE' });
-      dispatch({ type: 'SET_CONFIRM_MODAL_OPEN', payload: false });
+      fetchSuggestions(); // Fetch new suggestions for the new session
       dispatch({ type: 'SET_SUGGESTIONS_VISIBLE', payload: true });
-  }, []);
+  }, [fetchSuggestions]);
 
   return (
     <>
@@ -618,8 +637,11 @@ export default function App() {
                    />
                    <PromptSuggestions 
                         isVisible={areSuggestionsVisible}
+                        suggestions={suggestions}
+                        isLoading={areSuggestionsLoading}
                         onSuggestionClick={handleSuggestionClick} 
                         onDismiss={() => dispatch({ type: 'SET_SUGGESTIONS_VISIBLE', payload: false })}
+                        onRefresh={fetchSuggestions}
                     />
               </div>
           </main>

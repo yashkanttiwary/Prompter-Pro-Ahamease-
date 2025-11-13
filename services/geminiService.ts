@@ -239,3 +239,64 @@ RULES:
         throw new Error("An unknown error occurred while correcting the text.");
     }
 }
+
+// Fallback suggestions in case the API call fails
+const FALLBACK_SUGGESTIONS = [
+    "Draft a tweet about a new AI feature launch",
+    "Explain the concept of ELI5 for black holes",
+    "Write a short, spooky story about a haunted library",
+    "Generate a workout plan for a beginner focusing on cardio",
+];
+
+export async function generatePromptSuggestions(): Promise<string[]> {
+    try {
+        const apiKey = getApiKey();
+        if (!apiKey) {
+            // No key, just return fallback without logging an error.
+            return FALLBACK_SUGGESTIONS;
+        }
+
+        const ai = new GoogleGenAI({ apiKey });
+
+        const metaPrompt = `You are an idea generator for an AI prompt builder. Your task is to produce exactly 4 distinct prompt ideas that will inspire users to try new things.
+        
+REQUIREMENTS:
+1.  **Variety**: Cover a mix of categories: one creative/fictional, one educational/explanatory, one practical/productivity, and one fun/whimsical.
+2.  **Conciseness**: Each idea must be a single sentence and fewer than 15 words.
+3.  **Originality**: Do not repeat common clichés. Aim to surprise and delight.
+4.  **Format**: You MUST respond with ONLY a valid JSON array of strings. Do not include any other text, markdown, or explanation.
+    
+Example response:
+["Invent a new flavor of ice cream", "Explain how photosynthesis works to a child", "Draft an email to reschedule a meeting", "Describe a superhero whose only power is making perfect toast"]`;
+
+        const response = await ai.models.generateContent({
+            model: 'gemini-2.5-flash',
+            contents: metaPrompt,
+            config: {
+                responseMimeType: 'application/json',
+                responseSchema: {
+                    type: Type.ARRAY,
+                    items: { type: Type.STRING }
+                },
+                temperature: 1.0, // Higher temperature for more creative/varied suggestions
+            },
+        });
+
+        // The response text should be a JSON string based on the schema
+        let jsonStr = response.text.trim();
+        const suggestions = JSON.parse(jsonStr);
+        
+        if (Array.isArray(suggestions) && suggestions.every(s => typeof s === 'string') && suggestions.length > 0) {
+            return suggestions.slice(0, 4); // Ensure we only return 4
+        }
+        
+        // If parsing fails or the structure is wrong, fall back.
+        console.warn("API returned invalid suggestion format, using fallback.");
+        return FALLBACK_SUGGESTIONS;
+
+    } catch (e) {
+        console.error("Error generating prompt suggestions:", e);
+        // On any error, return the reliable fallback list.
+        return FALLBACK_SUGGESTIONS;
+    }
+}

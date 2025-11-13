@@ -421,59 +421,47 @@ export const GenerationModeToggle = memo(({ mode, setMode, isProcessing }: { mod
     </div>
 ));
 
-const FULL_SUGGESTIONS = [
-    "Draft a tweet about a new AI feature launch",
-    "Explain the ELI5 of black holes",
-    "Write a Python script to organize files by extension",
-    "Plan a 3-day trip to Tokyo",
-    "Summarize the plot of 'Dune' in three paragraphs",
-    "Generate a recipe for a vegan chocolate cake",
-    "Create a catchy slogan for a new coffee brand",
-    "Write a short, spooky story about a haunted library",
-    "Translate 'Hello, how are you?' into Spanish and Japanese",
-    "Compose a professional email asking for a deadline extension",
-    "List three pros and cons of remote work",
-    "Generate a workout plan for a beginner focusing on cardio",
-];
-
-const shuffleArray = <T,>(array: T[]): T[] => {
-    const newArray = [...array];
-    for (let i = newArray.length - 1; i > 0; i--) {
-        const j = Math.floor(Math.random() * (i + 1));
-        [newArray[i], newArray[j]] = [newArray[j], newArray[i]];
-    }
-    return newArray;
-};
-
+const SuggestionSkeleton = () => (
+    <div className="w-full h-8 bg-gray-200/50 rounded-full animate-pulse"></div>
+);
 
 export const PromptSuggestionChip = memo(({ text, onClick }: { text: string; onClick: (text: string) => void }) => (
     <button
         onClick={() => onClick(text)}
-        className="px-3 py-1.5 bg-white/60 backdrop-blur-xl border border-white/30 rounded-full text-xs text-slate-700 hover:bg-white/80 hover:border-white/50 hover:text-slate-900 hover:scale-105 transition-all duration-200 shadow-md"
+        className="px-3 py-1.5 bg-white/60 backdrop-blur-xl border border-white/30 rounded-full text-xs text-slate-700 hover:bg-white/80 hover:border-white/50 hover:text-slate-900 hover:scale-105 transition-all duration-200 shadow-md text-left"
     >
         {text}
     </button>
 ));
 
-export const PromptSuggestions = memo(({ isVisible, onSuggestionClick, onDismiss }: { isVisible: boolean; onSuggestionClick: (text: string) => void, onDismiss: () => void }) => {
-    const [currentSuggestions, setCurrentSuggestions] = useState<string[]>([]);
-    
-    const refreshSuggestions = useCallback(() => {
-        setCurrentSuggestions(shuffleArray(FULL_SUGGESTIONS).slice(0, 4));
-    }, []);
-
-    useEffect(() => {
-        refreshSuggestions();
-    }, [refreshSuggestions]);
-    
+export const PromptSuggestions = memo(({ 
+    isVisible, 
+    suggestions, 
+    isLoading, 
+    onSuggestionClick, 
+    onDismiss, 
+    onRefresh 
+}: { 
+    isVisible: boolean; 
+    suggestions: string[];
+    isLoading: boolean;
+    onSuggestionClick: (text: string) => void;
+    onDismiss: () => void;
+    onRefresh: () => void;
+}) => {
     if (!isVisible) return null;
     
     return (
-        <div className="flex items-center justify-center gap-2 mt-3 flex-wrap px-4">
-            {currentSuggestions.map((s) => <PromptSuggestionChip key={s} text={s} onClick={onSuggestionClick} />)}
-            <div className="flex items-center gap-1">
-                <button onClick={refreshSuggestions} aria-label="Refresh suggestions" className="p-1.5 text-gray-400 hover:text-gray-600 rounded-full transition-colors bg-white/50 hover:bg-white/80">
-                    <RefreshCw className="w-3 h-3" />
+        <div className="mt-4 flex flex-col items-center gap-2">
+            <div className="grid grid-cols-2 gap-2 w-full max-w-lg">
+                {isLoading 
+                    ? Array.from({ length: 4 }).map((_, i) => <SuggestionSkeleton key={i} />)
+                    : suggestions.map((s) => <PromptSuggestionChip key={s} text={s} onClick={onSuggestionClick} />)
+                }
+            </div>
+            <div className="flex items-center gap-1 mt-1">
+                <button onClick={onRefresh} aria-label="Refresh suggestions" className="p-1.5 text-gray-400 hover:text-gray-600 rounded-full transition-colors bg-white/50 hover:bg-white/80 disabled:opacity-50" disabled={isLoading}>
+                    <RefreshCw className={`w-3 h-3 ${isLoading ? 'animate-spin' : ''}`} />
                 </button>
                  <button onClick={onDismiss} aria-label="Dismiss suggestions" className="p-1.5 text-gray-400 hover:text-gray-600 rounded-full transition-colors bg-white/50 hover:bg-white/80">
                     <X className="w-4 h-4" />
