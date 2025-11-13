@@ -1,4 +1,3 @@
-
 import React, { useState, useRef, useEffect, useCallback, useReducer } from 'react';
 import { AlertTriangle, Settings } from 'lucide-react';
 import { Message, AttachedFile } from './types';
@@ -52,7 +51,6 @@ type AppState = {
     history: Content[];
     input: string;
     isProcessing: boolean;
-    expandedThinking: { [key: string]: boolean };
     copiedId: string | null;
     apiKeyError: boolean;
     conversationPhase: 'INQUIRY' | 'GENERATION';
@@ -64,6 +62,7 @@ type AppState = {
     generationMode: 'PROMPT' | 'BUILD';
     isApiKeyModalOpen: boolean;
     isConfirmModalOpen: boolean;
+    areSuggestionsVisible: boolean;
 };
 
 type AppAction =
@@ -75,18 +74,19 @@ type AppAction =
     | { type: 'SET_HISTORY'; payload: Content[] }
     | { type: 'SET_INPUT'; payload: string }
     | { type: 'SET_PROCESSING'; payload: boolean }
-    | { type: 'TOGGLE_THINKING'; payload: string }
     | { type: 'SET_COPIED_ID'; payload: string | null }
     | { type: 'SET_API_KEY_ERROR'; payload: boolean }
     | { type: 'SET_CONVERSATION_PHASE'; payload: 'INQUIRY' | 'GENERATION' }
     | { type: 'SET_PROMPT_GENERATED'; payload: boolean }
     | { type: 'SET_TOAST'; payload: AppState['toast'] }
     | { type: 'SET_ATTACHED_FILES'; payload: AttachedFile[] }
+    | { type: 'UPDATE_ATTACHED_FILE_SUCCESS'; payload: { name: string; content: string; preview?: string } }
     | { type: 'SET_LISTENING'; payload: boolean }
     | { type: 'SET_WHITEBOARD_OPEN'; payload: boolean }
     | { type: 'SET_GENERATION_MODE', payload: 'PROMPT' | 'BUILD' }
     | { type: 'SET_API_KEY_MODAL_OPEN', payload: boolean }
     | { type: 'SET_CONFIRM_MODAL_OPEN', payload: boolean }
+    | { type: 'SET_SUGGESTIONS_VISIBLE', payload: boolean }
     | { type: 'RESET_STATE' };
 
 const initialState: AppState = {
@@ -95,7 +95,6 @@ const initialState: AppState = {
     history: [],
     input: '',
     isProcessing: false,
-    expandedThinking: {},
     copiedId: null,
     apiKeyError: false,
     conversationPhase: 'INQUIRY',
@@ -107,6 +106,7 @@ const initialState: AppState = {
     generationMode: 'BUILD',
     isApiKeyModalOpen: false,
     isConfirmModalOpen: false,
+    areSuggestionsVisible: true,
 };
 
 function appReducer(state: AppState, action: AppAction): AppState {
@@ -132,18 +132,27 @@ function appReducer(state: AppState, action: AppAction): AppState {
         case 'SET_HISTORY': return { ...state, history: action.payload };
         case 'SET_INPUT': return { ...state, input: action.payload };
         case 'SET_PROCESSING': return { ...state, isProcessing: action.payload };
-        case 'TOGGLE_THINKING': return { ...state, expandedThinking: { ...state.expandedThinking, [action.payload]: !state.expandedThinking[action.payload] } };
         case 'SET_COPIED_ID': return { ...state, copiedId: action.payload };
         case 'SET_API_KEY_ERROR': return { ...state, apiKeyError: action.payload };
         case 'SET_CONVERSATION_PHASE': return { ...state, conversationPhase: action.payload };
         case 'SET_PROMPT_GENERATED': return { ...state, promptGenerated: action.payload };
         case 'SET_TOAST': return { ...state, toast: action.payload };
         case 'SET_ATTACHED_FILES': return { ...state, attachedFiles: action.payload };
+        case 'UPDATE_ATTACHED_FILE_SUCCESS':
+            return {
+                ...state,
+                attachedFiles: state.attachedFiles.map(f =>
+                    f.name === action.payload.name && f.isLoading
+                    ? { ...f, content: action.payload.content, preview: action.payload.preview, isLoading: false }
+                    : f
+                )
+            };
         case 'SET_LISTENING': return { ...state, isListening: action.payload };
         case 'SET_WHITEBOARD_OPEN': return { ...state, isWhiteboardOpen: action.payload };
         case 'SET_GENERATION_MODE': return { ...state, generationMode: action.payload };
         case 'SET_API_KEY_MODAL_OPEN': return { ...state, isApiKeyModalOpen: action.payload };
         case 'SET_CONFIRM_MODAL_OPEN': return { ...state, isConfirmModalOpen: action.payload };
+        case 'SET_SUGGESTIONS_VISIBLE': return { ...state, areSuggestionsVisible: action.payload };
         case 'RESET_STATE': return { ...initialState, apiKeyError: state.apiKeyError, view: 'landing' };
         default: return state;
     }
@@ -153,15 +162,48 @@ function appReducer(state: AppState, action: AppAction): AppState {
 // --- Main App Component ---
 export default function App() {
   const [state, dispatch] = useReducer(appReducer, initialState);
-  const { view, messages, history, input, isProcessing, expandedThinking, copiedId, apiKeyError, conversationPhase, promptGenerated, toast, attachedFiles, isListening, isWhiteboardOpen, generationMode, isApiKeyModalOpen, isConfirmModalOpen } = state;
+  const { view, messages, history, input, isProcessing, copiedId, apiKeyError, conversationPhase, promptGenerated, toast, attachedFiles, isListening, isWhiteboardOpen, generationMode, isApiKeyModalOpen, isConfirmModalOpen, areSuggestionsVisible } = state;
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const recognitionRef = useRef<SpeechRecognition | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const landingMainRef = useRef<HTMLElement>(null);
 
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    // FIX H1: Add small delay to ensure DOM has updated before scrolling.
+    setTimeout(() => {
+        messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    }, 50);
   }, [messages, isProcessing]);
+
+  // Effect for interactive orb
+  useEffect(() => {
+    const mainEl = landingMainRef.current;
+    if (view !== 'landing' || !mainEl) return;
+
+    const orb = mainEl.querySelector('.brand-icon') as HTMLElement;
+    if (!orb) return;
+
+    const handleMouseMove = (e: MouseEvent) => {
+      const rect = orb.getBoundingClientRect();
+      const x = e.clientX - rect.left;
+      const y = e.clientY - rect.top;
+
+      const xPercent = (x / rect.width) * 100;
+      const yPercent = (y / rect.height) * 100;
+
+      requestAnimationFrame(() => {
+        orb.style.setProperty('--mouse-x', `${xPercent}%`);
+        orb.style.setProperty('--mouse-y', `${yPercent}%`);
+      });
+    };
+    
+    mainEl.addEventListener('mousemove', handleMouseMove);
+
+    return () => {
+      mainEl.removeEventListener('mousemove', handleMouseMove);
+    };
+  }, [view]);
 
   const showToast = useCallback((message: string, type: 'success' | 'error', duration: number = 5000) => {
       dispatch({ type: 'SET_TOAST', payload: { message, type } });
@@ -201,8 +243,9 @@ export default function App() {
       recognition.onerror = (event: SpeechRecognitionErrorEvent) => {
         console.error('Speech recognition error', event.error);
         let errorMessage = `Speech recognition error: ${event.error}`;
+        // FIX M2: More helpful microphone error message
         if (event.error === 'not-allowed') {
-            errorMessage = 'Microphone access denied. Please enable it in your browser settings.';
+            errorMessage = 'Microphone access denied. Please check your browser\'s site settings to allow microphone access for this page.';
         }
         showToast(errorMessage, 'error');
         dispatch({ type: 'SET_LISTENING', payload: false });
@@ -211,10 +254,6 @@ export default function App() {
       recognitionRef.current = recognition;
     }
   }, [showToast, state.input]);
-
-  const toggleThinking = (id: string) => {
-    dispatch({ type: 'TOGGLE_THINKING', payload: id });
-  };
 
   const copyToClipboard = useCallback(async (text: string, id:string) => {
     try {
@@ -228,70 +267,64 @@ export default function App() {
     }
   }, [showToast]);
 
+    // FIX H2: Reworked file handling to provide immediate feedback and avoid stale state.
     const handleFileChange = (files: FileList | null) => {
-        if (files) {
-            const fileArray = Array.from(files);
-            const supportedImageTypes = ['image/jpeg', 'image/png', 'image/webp'];
-            const supportedTextTypes = ['text/plain'];
-            const supportedPdfTypes = ['application/pdf'];
+        if (!files) return;
 
-            const currentFiles = [...attachedFiles];
+        const fileArray = Array.from(files);
+        const supportedImageTypes = ['image/jpeg', 'image/png', 'image/webp'];
+        const supportedTextTypes = ['text/plain'];
+        const supportedPdfTypes = ['application/pdf'];
 
-            fileArray.forEach((file: File) => {
-                if (currentFiles.length >= 5) {
-                    showToast('You can attach a maximum of 5 files.', 'error');
-                    return;
-                }
-                
-                const filePlaceholder: AttachedFile = {
-                  name: file.name,
-                  mimeType: file.type,
-                  content: '',
-                  isLoading: true,
-                };
-                currentFiles.push(filePlaceholder);
-                dispatch({ type: 'SET_ATTACHED_FILES', payload: [...currentFiles] });
+        const currentFilesCount = attachedFiles.length;
+        if (currentFilesCount + fileArray.length > 5) {
+            showToast('You can attach a maximum of 5 files.', 'error');
+            return;
+        }
 
-                const reader = new FileReader();
-                
-                reader.onload = (e) => {
-                    const result = e.target?.result as string;
-                    let content: string, preview: string | undefined;
+        const newPlaceholders: AttachedFile[] = fileArray.map(file => ({
+            name: file.name,
+            mimeType: file.type,
+            content: '',
+            isLoading: true,
+        }));
+        dispatch({ type: 'SET_ATTACHED_FILES', payload: [...attachedFiles, ...newPlaceholders] });
 
-                    if (supportedImageTypes.includes(file.type) || supportedPdfTypes.includes(file.type)) {
-                        content = result.split(',')[1];
-                        if (file.type.startsWith('image/')) {
-                            preview = result;
-                        }
-                    } else { // Text files
-                        content = result;
-                    }
-                    
-                    dispatch({ 
-                        type: 'SET_ATTACHED_FILES', 
-                        payload: attachedFiles.map(f => 
-                            f.name === file.name && f.isLoading 
-                            ? { ...f, content, preview, isLoading: false } 
-                            : f
-                        )
-                    });
-                };
-                
-                reader.onerror = () => {
-                     showToast(`Failed to read file: ${file.name}`, 'error');
-                     dispatch({ type: 'SET_ATTACHED_FILES', payload: attachedFiles.filter(f => !(f.name === file.name && f.isLoading)) });
-                };
+        fileArray.forEach((file: File) => {
+            if (!supportedImageTypes.includes(file.type) && !supportedTextTypes.includes(file.type) && !supportedPdfTypes.includes(file.type)) {
+                showToast(`Unsupported file type: ${file.name}`, 'error');
+                dispatch({ type: 'SET_ATTACHED_FILES', payload: attachedFiles.filter(f => f.name !== file.name) });
+                return;
+            }
+
+            const reader = new FileReader();
+            
+            reader.onload = (e) => {
+                const result = e.target?.result as string;
+                let content: string, preview: string | undefined;
 
                 if (supportedImageTypes.includes(file.type) || supportedPdfTypes.includes(file.type)) {
-                    reader.readAsDataURL(file);
-                } else if (supportedTextTypes.includes(file.type)) {
-                    reader.readAsText(file);
+                    content = result.split(',')[1];
+                    if (file.type.startsWith('image/')) {
+                        preview = result;
+                    }
                 } else {
-                    showToast(`Unsupported file type: ${file.name}`, 'error');
-                    dispatch({ type: 'SET_ATTACHED_FILES', payload: attachedFiles.filter(f => !(f.name === file.name && f.isLoading)) });
+                    content = result;
                 }
-            });
-        }
+                dispatch({ type: 'UPDATE_ATTACHED_FILE_SUCCESS', payload: { name: file.name, content, preview }});
+            };
+            
+            reader.onerror = () => {
+                 showToast(`Failed to read file: ${file.name}`, 'error');
+                 dispatch({ type: 'SET_ATTACHED_FILES', payload: attachedFiles.filter(f => !(f.name === file.name && f.isLoading)) });
+            };
+
+            if (supportedImageTypes.includes(file.type) || supportedPdfTypes.includes(file.type)) {
+                reader.readAsDataURL(file);
+            } else if (supportedTextTypes.includes(file.type)) {
+                reader.readAsText(file);
+            }
+        });
     };
 
     const removeFile = (index: number) => {
@@ -353,7 +386,10 @@ export default function App() {
       let finalResult: { fullResponse: Message; newHistory: Content[] } | undefined;
       let result = await stream.next();
       while(!result.done) {
-        dispatch({ type: 'UPDATE_STREAMING_MESSAGE', payload: { content: result.value } });
+        // FIX C1: Do not show raw streaming JSON for structured prompt generation.
+        if (phaseForAPI !== 'GENERATION') {
+            dispatch({ type: 'UPDATE_STREAMING_MESSAGE', payload: { content: result.value } });
+        }
         result = await stream.next();
       }
       finalResult = result.value;
@@ -408,6 +444,7 @@ export default function App() {
   const confirmReset = useCallback(() => {
       dispatch({ type: 'RESET_STATE' });
       dispatch({ type: 'SET_CONFIRM_MODAL_OPEN', payload: false });
+      dispatch({ type: 'SET_SUGGESTIONS_VISIBLE', payload: true });
   }, []);
 
   return (
@@ -440,7 +477,7 @@ export default function App() {
         )}
 
         {view === 'landing' && (
-          <main className="flex-1 flex flex-col items-center overflow-y-auto">
+          <main ref={landingMainRef} className="flex-1 flex flex-col items-center overflow-y-auto">
               <div className="flex flex-col items-center text-center mt-20 sm:mt-24 gap-4">
                   <div 
                     className="brand-icon w-24 h-24 mb-4 rounded-full"
@@ -470,22 +507,24 @@ export default function App() {
                       onAnnotate={handleAnnotate}
                       textareaRef={textareaRef}
                    />
-                   <PromptSuggestions onSuggestionClick={handleSuggestionClick} />
+                   <PromptSuggestions 
+                        isVisible={areSuggestionsVisible}
+                        onSuggestionClick={handleSuggestionClick} 
+                        onDismiss={() => dispatch({ type: 'SET_SUGGESTIONS_VISIBLE', payload: false })}
+                    />
               </div>
           </main>
         )}
 
         {view === 'chat' && (
           <div className="flex-1 flex flex-col w-full max-w-3xl mx-auto overflow-hidden">
-               <div className="flex-1 overflow-y-auto space-y-6 p-2 pb-4">
+               <div className="flex-1 overflow-y-auto space-y-6 p-2 pb-4" aria-live="polite" aria-atomic="false">
                   {messages.map((msg) => (
                       <MessageBubble
                           key={msg.id}
                           msg={msg}
                           onCopy={copyToClipboard}
                           copiedId={copiedId}
-                          onToggleThinking={toggleThinking}
-                          expandedThinking={expandedThinking}
                           isStreaming={isProcessing && msg.id === messages[messages.length - 1].id}
                       />
                   ))}
@@ -509,7 +548,11 @@ export default function App() {
                         onAnnotate={handleAnnotate}
                         textareaRef={textareaRef}
                   />
-                  <PromptSuggestions onSuggestionClick={handleSuggestionClick} />
+                  <PromptSuggestions 
+                        isVisible={areSuggestionsVisible}
+                        onSuggestionClick={handleSuggestionClick}
+                        onDismiss={() => dispatch({ type: 'SET_SUGGESTIONS_VISIBLE', payload: false })}
+                    />
               </div>
           </div>
         )}

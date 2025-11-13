@@ -39,6 +39,10 @@
     --grid-spacing: 22px;
     --grid-opacity: 0.7;
     --grid-color: rgba(30, 30, 40, 0.18);
+
+    /* --- MOUSE INTERACTION VARIABLES --- */
+    --mouse-x: 50%;
+    --mouse-y: 50%;
   }
   body {
     background-image: radial-gradient(circle at 20% 30%, hsl(320, 75%, 88%, 0.4), transparent 40%), 
@@ -66,6 +70,17 @@
   }
   ::-webkit-scrollbar-thumb:hover {
     background-color: hsl(240, 10%, 75%);
+  }
+
+  /* --- ACCESSIBILITY FOCUS STYLES --- */
+  button:focus-visible, a:focus-visible, [tabindex="0"]:focus-visible, input[type="file"]:focus-visible {
+    outline: 2px solid var(--primary);
+    outline-offset: 2px;
+    box-shadow: var(--focus-ring);
+    border-radius: 6px;
+  }
+  textarea:focus-visible {
+      outline: none; /* The focus-within-ring class handles this */
   }
 
   /* --- ORB ANIMATION --- */
@@ -110,9 +125,12 @@
     height: 80%;
     border-radius: 50%;
     z-index: -1;
-    background: radial-gradient(circle at 38% 35%, hsla(0, 0%, 100%, 0.75) 0%, hsla(0, 0%, 100%, 0.35) 30%, hsla(200, 80%, 85%, 0.2) 55%, transparent 80%);
+    background: 
+        radial-gradient(circle 120px at var(--mouse-x) var(--mouse-y), hsla(0, 0%, 100%, 0.6), transparent 70%),
+        radial-gradient(circle at 38% 35%, hsla(0, 0%, 100%, 0.75) 0%, hsla(0, 0%, 100%, 0.35) 30%, hsla(200, 80%, 85%, 0.2) 55%, transparent 80%);
     animation: orb-pulse 5s ease-in-out infinite;
     filter: blur(10px);
+    transition: background 0.1s linear;
   }
 
   @keyframes orb-flow-1 {
@@ -134,15 +152,15 @@
   }
 
   @keyframes orb-pulse {
-    0%, 100% { opacity: 0.8; transform: scale(1) translate(0, 0); }
-    20% { opacity: 1.0; transform: scale(1.15) translate(2%, -1%); }
-    40% { opacity: 0.9; transform: scale(0.95) translate(-1%, 3%); }
-    60% { opacity: 1.0; transform: scale(1.12) translate(3%, 2%); }
-    80% { opacity: 0.85; transform: scale(1.02) translate(-2%, -2%); }
+    0%, 100% { opacity: 0.8; transform: scale(1); }
+    20% { opacity: 1.0; transform: scale(1.15); }
+    40% { opacity: 0.9; transform: scale(0.95); }
+    60% { opacity: 1.0; transform: scale(1.12); }
+    80% { opacity: 0.85; transform: scale(1.02); }
   }
 
   .brand-icon::before, .brand-icon::after {
-    will-change: transform, opacity;
+    will-change: transform, opacity, background;
     backface-visibility: hidden;
     transform-style: preserve-3d;
   }

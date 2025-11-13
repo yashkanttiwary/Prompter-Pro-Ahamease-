@@ -1,4 +1,3 @@
-
 import { GoogleGenAI, Content, Part, GenerateContentResponse, Type } from "@google/genai";
 import { Message, PromptGenerationResponse, AttachedFile } from '../types';
 
@@ -46,7 +45,10 @@ The JSON object must have the following structure:
 
 First, if the user's request is ambiguous or lacks detail, you MUST ask up to 3 clarifying questions in a conversational chat format. To do this, just provide the question as a plain text response, not in the JSON format.
 
-Once you have enough information, generate the complete JSON object as described above. Do not include any text outside of the JSON markdown block. Ensure the JSON is well-formed.`;
+Once you have enough information, generate the complete JSON object as described above. Do not include any text outside of the JSON markdown block. Ensure the JSON is well-formed.
+
+Maintain a professional, clear, and consistent tone in all generated content. Proofread for grammatical correctness.
+When generating examples or content, strictly use the information, items, or context provided by the user. Do not introduce new, external examples unless explicitly asked.`;
 
 // This function determines which API key to use.
 // It prioritizes a user-provided key from localStorage.

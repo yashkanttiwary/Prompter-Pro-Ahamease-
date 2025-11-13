@@ -1,7 +1,6 @@
-
 import React, { useRef, useState, useEffect, useCallback, memo } from 'react';
 import { 
-    Copy, Check, ChevronDown, ChevronRight, CheckCircle, XCircle, 
+    Copy, Check, CheckCircle, XCircle, 
     Paperclip, Mic, X, FileText, MousePointer2, Brush, Eraser, Undo2, Redo2, Trash2, Settings, Plus
 } from 'lucide-react';
 import { Message, AttachedFile, User } from './types';
@@ -90,49 +89,7 @@ const SmallFilePreview = ({ files }: { files: AttachedFile[] }) => {
     );
 };
 
-export const ThinkingSection: React.FC<{ msg: Message; index: number; expanded: boolean; onToggle: () => void }> = ({ msg, index, expanded, onToggle }) => {
-  if (!msg.thinking || msg.role !== 'assistant') return null;
-  const { thinking } = msg;
-
-  return (
-    <div className="border-t border-[hsl(240,10%,90%)] bg-white mt-4 pt-4">
-      <button
-        onClick={onToggle}
-        className="w-full px-4 py-2 flex items-center justify-between hover:bg-[--neutral-50] transition-colors rounded-md"
-        aria-expanded={expanded}
-        aria-controls={`thinking-content-${msg.id}`}
-      >
-        <span className="text-sm font-medium text-[--neutral-700] flex items-center gap-2">
-          {expanded ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
-          Show Analysis & Reasoning
-        </span>
-      </button>
-
-      {expanded && thinking && (
-        <div id={`thinking-content-${msg.id}`} className="px-4 pb-2 pt-2 space-y-3 text-sm">
-          <div>
-            <h4 className="font-semibold text-[--neutral-800] mb-1">Approach:</h4>
-            <p className="text-[--neutral-700] text-xs">{thinking.approach}</p>
-          </div>
-          <div>
-            <h4 className="font-semibold text-[--neutral-800] mb-1">Assumptions:</h4>
-            <ul className="list-disc list-inside text-xs text-[--neutral-700] space-y-1">
-              {thinking.assumptions.map((a, i) => <li key={i}>{a}</li>)}
-            </ul>
-          </div>
-          <div>
-            <h4 className="font-semibold text-[--neutral-800] mb-1">Reasoning Summary:</h4>
-            <ul className="list-disc list-inside text-xs text-[--neutral-700] space-y-1">
-              {thinking.reasoning.map((r, i) => <li key={i}>{r}</li>)}
-            </ul>
-          </div>
-        </div>
-      )}
-    </div>
-  );
-};
-
-export const MessageBubble: React.FC<{ msg: Message; onCopy: (text: string, id: string) => void; copiedId: string | null; onToggleThinking: (id: string) => void; expandedThinking: { [key: string]: boolean }, isStreaming: boolean }> = ({ msg, onCopy, copiedId, onToggleThinking, expandedThinking, isStreaming }) => {
+export const MessageBubble: React.FC<{ msg: Message; onCopy: (text: string, id: string) => void; copiedId: string | null; isStreaming: boolean }> = ({ msg, onCopy, copiedId, isStreaming }) => {
   const isUser = msg.role === 'user';
   const hasContent = msg.content && msg.content.trim() !== '';
   const hasAttachments = msg.type === 'chat' && msg.attachedFiles && msg.attachedFiles.length > 0;
@@ -169,7 +126,6 @@ export const MessageBubble: React.FC<{ msg: Message; onCopy: (text: string, id: 
             </div>
           </div>
         )}
-        <ThinkingSection msg={msg} index={0} expanded={!!expandedThinking[msg.id]} onToggle={() => onToggleThinking(msg.id)} />
       </div>
     </div>
   );
@@ -360,16 +316,21 @@ const SUGGESTIONS = [
 export const PromptSuggestionChip = memo(({ text, onClick }: { text: string; onClick: (text: string) => void }) => (
     <button
         onClick={() => onClick(text)}
-        className="px-3 py-1.5 bg-white/60 backdrop-blur-xl border border-gray-200/50 rounded-full text-xs text-[--neutral-700] hover:bg-black/5 hover:border-black/10 transition-colors shadow-sm focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[--primary]"
+        className="px-3 py-1.5 bg-white/60 backdrop-blur-xl border border-gray-200/50 rounded-full text-xs text-[--neutral-700] hover:bg-black/5 hover:border-black/10 transition-colors shadow-sm"
     >
         {text}
     </button>
 ));
 
-export const PromptSuggestions = memo(({ onSuggestionClick }: { onSuggestionClick: (text: string) => void }) => {
+export const PromptSuggestions = memo(({ isVisible, onSuggestionClick, onDismiss }: { isVisible: boolean; onSuggestionClick: (text: string) => void, onDismiss: () => void }) => {
+    if (!isVisible) return null;
+    
     return (
         <div className="flex items-center justify-center gap-2 mt-3 flex-wrap px-4">
             {SUGGESTIONS.map((s) => <PromptSuggestionChip key={s} text={s} onClick={onSuggestionClick} />)}
+            <button onClick={onDismiss} aria-label="Dismiss suggestions" className="p-1 text-gray-400 hover:text-gray-600 rounded-full">
+                <X className="w-4 h-4" />
+            </button>
         </div>
     );
 });
@@ -435,7 +396,7 @@ export const ApiKeyModal = ({ isOpen, onClose, onSave, showToast }: { isOpen: bo
                         value={apiKey}
                         onChange={e => setApiKey(e.target.value)}
                         placeholder="Enter your API key"
-                        className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-[--primary] focus:border-[--primary] transition"
+                        className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-[--primary] focus:border-[--primary] transition placeholder:text-gray-500"
                         autoComplete="off"
                     />
                 </div>
