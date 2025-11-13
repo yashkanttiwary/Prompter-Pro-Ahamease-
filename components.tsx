@@ -1,26 +1,27 @@
 import React, { useRef, useState, useEffect, useCallback, memo } from 'react';
 import { 
     Copy, Check, CheckCircle, XCircle, 
-    Paperclip, Mic, X, FileText, MousePointer2, Brush, Eraser, Undo2, Redo2, Trash2, Settings, Plus
+    Paperclip, Mic, X, FileText, MousePointer2, Brush, Eraser, Undo2, Redo2, Trash2, Settings, Plus,
+    Lightbulb, Bot, RefreshCw
 } from 'lucide-react';
 import { Message, AttachedFile, User } from './types';
 
 
 // --- SVG Icons for Ahamease UI ---
 export const SparkleIcon = ({ className = '' }: { className?: string }) => (
-    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className={className}>
+    <svg xmlns="http://www.w.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className={className}>
       <path d="M10.788 3.21c.448-1.077 1.976-1.077 2.424 0l2.082 5.007 5.404.433c1.164.093 1.636 1.545.749 2.305l-4.117 3.527 1.257 5.273c.271 1.136-.964 2.033-1.96 1.425L12 18.354 7.373 21.18c-.996.608-2.231-.29-1.96-1.425l1.257-5.273-4.117-3.527c-.887-.76-.415-2.212.749-2.305l5.404-.433 2.082-5.006z" />
     </svg>
 );
 
 export const SendIcon = ({ className = '' }: { className?: string }) => (
-    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className={className}>
+    <svg xmlns="http://www.w.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className={className}>
         <path d="M3.478 2.405a.75.75 0 00-.926.94l2.432 7.905H13.5a.75.75 0 010 1.5H4.984l-2.432 7.905a.75.75 0 00.926.94 60.519 60.519 0 0018.445-8.986.75.75 0 000-1.218A60.517 60.517 0 003.478 2.405z" />
     </svg>
 );
 
 // --- Reusable Components ---
-export const SafeMarkdown: React.FC<{ text: string, className?: string, isStreaming?: boolean }> = React.memo(({ text, className = '', isStreaming = false }) => {
+export const SafeMarkdown: React.FC<{ text: string, className?: string, isStreaming?: boolean, isUser?: boolean }> = React.memo(({ text, className = '', isStreaming = false, isUser = false }) => {
     const processInlineFormatting = (text: string) => {
         const parts = text.split(/(\*\*.*?\*\*|\*.*?\*|`.*?`)/g);
         return parts.map((part, j) => {
@@ -31,7 +32,7 @@ export const SafeMarkdown: React.FC<{ text: string, className?: string, isStream
                 return <em key={j} className="italic">{part.slice(1, -1)}</em>;
             }
             if (part.startsWith('`') && part.endsWith('`')) {
-                return <code key={j} className="text-sm bg-gray-100 text-red-600 rounded px-1 py-0.5 font-mono">{part.slice(1, -1)}</code>;
+                return <code key={j} className={`text-sm rounded px-1 py-0.5 font-mono ${isUser ? 'bg-orange-100/70 text-red-700' : 'bg-gray-100 text-red-600'}`}>{part.slice(1, -1)}</code>;
             }
             return part;
         });
@@ -65,22 +66,22 @@ export const SafeMarkdown: React.FC<{ text: string, className?: string, isStream
 
     flushList('ul-last');
 
-    const streamingCursor = isStreaming ? <span className="inline-block w-2 h-4 bg-[--neutral-800] animate-pulse ml-1" /> : null;
+    const streamingCursor = isStreaming ? <span className={`inline-block w-2 h-4 ${isUser ? 'bg-[--neutral-800]' : 'bg-[--neutral-800]'} animate-pulse ml-1`} /> : null;
 
     return <div className={className}>{elements}{streamingCursor}</div>;
 });
 
-const SmallFilePreview = ({ files }: { files: AttachedFile[] }) => {
+const SmallFilePreview = ({ files, isUser }: { files: AttachedFile[], isUser: boolean }) => {
     if (!files || files.length === 0) return null;
 
     return (
         <div className="pt-2 flex flex-wrap gap-2">
             {files.map((file, index) => (
-                <div key={`${file.name}-${index}`} className="bg-white border border-[--neutral-100] rounded-lg px-3 py-2 flex items-center gap-2 text-sm text-[--neutral-800] h-fit shadow-sm max-w-xs">
+                <div key={`${file.name}-${index}`} className={`border rounded-lg px-3 py-2 flex items-center gap-2 text-sm h-fit shadow-sm max-w-xs ${isUser ? 'bg-white/60 border-orange-200/60 text-[--neutral-800]' : 'bg-white border-[--neutral-100] text-[--neutral-800]'}`}>
                     {file.preview ? (
                         <img src={file.preview} alt={file.name} className="w-6 h-6 object-cover rounded" />
                     ) : (
-                        <FileText className="w-5 h-5 text-gray-500 flex-shrink-0" />
+                        <FileText className={`w-5 h-5 ${isUser ? 'text-gray-600' : 'text-gray-500'} flex-shrink-0`} />
                     )}
                     <span className="truncate" title={file.name}>{file.name}</span>
                 </div>
@@ -95,17 +96,17 @@ export const MessageBubble: React.FC<{ msg: Message; onCopy: (text: string, id: 
   const hasAttachments = msg.type === 'chat' && msg.attachedFiles && msg.attachedFiles.length > 0;
   
   return (
-    <div className={`flex flex-col ${isUser ? 'items-end' : 'items-start'}`}>
-      <div className={`max-w-3xl w-full ${isUser ? 'bg-white' : 'bg-white'} border border-[hsl(240,10%,92%)] rounded-xl shadow-[var(--shadow-md)] overflow-hidden`}>
-        <div className={`p-5 text-[--neutral-800]`}>
+    <div className={`flex flex-col ${isUser ? 'items-end' : 'items-start'} animate-slide-in-bottom`}>
+      <div className={`max-w-3xl w-full ${isUser ? 'bg-[#FEFAF7] text-[--neutral-800]' : 'bg-white text-[--neutral-800]'} border ${isUser ? 'border-[#FBEFEA]' : 'border-[hsl(240,10%,92%)]'} rounded-xl shadow-[var(--shadow-md)] overflow-hidden`}>
+        <div className="p-5">
            {isStreaming && !hasContent && (
                <div className="flex items-center gap-2">
                    <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-[--neutral-700]"></div>
                    <span className="text-sm text-[--neutral-700]">Generating...</span>
                </div>
            )}
-           {hasContent && <SafeMarkdown text={msg.content} isStreaming={isStreaming} />}
-           {hasAttachments && <SmallFilePreview files={msg.attachedFiles!} />}
+           {hasContent && <SafeMarkdown text={msg.content} isStreaming={isStreaming} isUser={isUser} />}
+           {hasAttachments && <SmallFilePreview files={msg.attachedFiles!} isUser={isUser} />}
         </div>
         {msg.type === 'prompt' && (
           <div className="p-5 pt-0 space-y-4">
@@ -132,29 +133,46 @@ export const MessageBubble: React.FC<{ msg: Message; onCopy: (text: string, id: 
 };
 
 
-export const Header = memo(({ onOpenSettings, onNewChat }: { onOpenSettings: () => void; onNewChat: () => void; }) => (
+export const Header = memo(({ onOpenSettings, onNewChat, view, mode, setMode }: { 
+    onOpenSettings: () => void; 
+    onNewChat: () => void; 
+    view: 'landing' | 'chat';
+    mode: 'PROMPT' | 'BUILD';
+    setMode: (mode: 'PROMPT' | 'BUILD') => void;
+}) => (
     <header className="py-8 w-full flex-shrink-0">
         <div className="flex justify-between items-center">
-            <div className="flex items-center gap-2 cursor-pointer">
-                <span className="text-3xl font-bold text-[--neutral-900]">Ahamease</span>
-                <SparkleIcon className="w-5 h-5 text-[--primary] -translate-y-2" />
+            <div className="flex-1 flex justify-start">
+                <button onClick={onNewChat} className="flex items-center gap-2" aria-label="Ahamease, Start new chat">
+                    <span className="text-3xl font-bold text-[--neutral-900]">Ahamease</span>
+                    <SparkleIcon className="w-5 h-5 text-[--primary] -translate-y-2" />
+                </button>
             </div>
-            <div className="flex items-center gap-4">
-                 <button 
-                    onClick={onNewChat}
-                    aria-label="Start new chat"
-                    className="hidden sm:inline-flex items-center gap-2 px-4 py-2 bg-white border border-[hsl(240,10%,85%)] rounded-full text-[--neutral-800] text-[15px] font-medium shadow-[var(--shadow-sm)] hover:bg-[--neutral-50] hover:shadow-[var(--shadow-md)] transition-all transform hover:-translate-y-0.5"
-                >
-                    <Plus className="w-4 h-4" />
-                    New Chat
-                </button>
-                 <button
-                    onClick={onOpenSettings}
-                    aria-label="Open settings"
-                    className="p-2.5 bg-white border border-[hsl(240,10%,85%)] rounded-full text-[--neutral-800] shadow-[var(--shadow-sm)] hover:bg-[--neutral-50] hover:shadow-[var(--shadow-md)] transition-all"
-                >
-                    <Settings className="w-5 h-5" />
-                </button>
+
+            <div className="flex-1 flex justify-center">
+                {view === 'chat' && (
+                    <GenerationModeToggle mode={mode} setMode={setMode} />
+                )}
+            </div>
+
+            <div className="flex-1 flex justify-end">
+                <div className="flex items-center gap-4">
+                     <button 
+                        onClick={onNewChat}
+                        aria-label="Start new chat"
+                        className="hidden sm:inline-flex items-center gap-2 px-4 py-2 bg-white border border-[hsl(240,10%,85%)] rounded-full text-[--neutral-800] text-[15px] font-medium shadow-[var(--shadow-sm)] hover:bg-[--neutral-50] hover:shadow-[var(--shadow-md)] transition-all transform hover:-translate-y-0.5"
+                    >
+                        <Plus className="w-4 h-4" />
+                        New Chat
+                    </button>
+                     <button
+                        onClick={onOpenSettings}
+                        aria-label="Open settings"
+                        className="p-2.5 bg-white border border-[hsl(240,10%,85%)] rounded-full text-[--neutral-800] shadow-[var(--shadow-sm)] hover:bg-[--neutral-50] hover:shadow-[var(--shadow-md)] transition-all"
+                    >
+                        <Settings className="w-5 h-5" />
+                    </button>
+                </div>
             </div>
         </div>
     </header>
@@ -286,32 +304,52 @@ export const InputArea = ({ input, setInput, handleSend, handleKeyPress, isProce
 };
 
 export const GenerationModeToggle = memo(({ mode, setMode }: { mode: 'PROMPT' | 'BUILD'; setMode: (mode: 'PROMPT' | 'BUILD') => void; }) => (
-    <div className="p-1 bg-white/70 backdrop-blur-xl border border-gray-200/50 rounded-full flex items-center w-fit mx-auto shadow-sm mb-3">
+    <div className="p-1 bg-white/70 backdrop-blur-xl border border-gray-200/50 rounded-full flex items-center w-fit mx-auto shadow-sm">
         <button
             onClick={() => setMode('PROMPT')}
-            className={`px-5 py-1.5 rounded-full text-sm font-medium transition-all duration-200 ${mode === 'PROMPT' ? 'bg-white shadow text-gray-800' : 'text-gray-500 hover:text-gray-700'}`}
+            className={`flex items-center gap-2 px-4 py-1.5 rounded-full text-sm font-medium transition-all duration-200 ${mode === 'PROMPT' ? 'bg-white shadow text-gray-800' : 'text-gray-500 hover:text-gray-700'}`}
             aria-pressed={mode === 'PROMPT'}
             title="Directly send your input to the model for a single-shot prompt generation."
         >
+            <Lightbulb className="w-4 h-4" />
             Direct Prompt
         </button>
         <button
             onClick={() => setMode('BUILD')}
-            className={`px-5 py-1.5 rounded-full text-sm font-medium transition-all duration-200 ${mode === 'BUILD' ? 'bg-white shadow text-gray-800' : 'text-gray-500 hover:text-gray-700'}`}
+            className={`flex items-center gap-2 px-4 py-1.5 rounded-full text-sm font-medium transition-all duration-200 ${mode === 'BUILD' ? 'bg-white shadow text-gray-800' : 'text-gray-500 hover:text-gray-700'}`}
             aria-pressed={mode === 'BUILD'}
             title="Engage in a conversation with the AI to collaboratively build and refine your prompt."
         >
+            <Bot className="w-4 h-4" />
             Build with AI
         </button>
     </div>
 ));
 
-const SUGGESTIONS = [
+const FULL_SUGGESTIONS = [
     "Draft a tweet about a new AI feature launch",
     "Explain the ELI5 of black holes",
     "Write a Python script to organize files by extension",
     "Plan a 3-day trip to Tokyo",
+    "Summarize the plot of 'Dune' in three paragraphs",
+    "Generate a recipe for a vegan chocolate cake",
+    "Create a catchy slogan for a new coffee brand",
+    "Write a short, spooky story about a haunted library",
+    "Translate 'Hello, how are you?' into Spanish and Japanese",
+    "Compose a professional email asking for a deadline extension",
+    "List three pros and cons of remote work",
+    "Generate a workout plan for a beginner focusing on cardio",
 ];
+
+const shuffleArray = <T,>(array: T[]): T[] => {
+    const newArray = [...array];
+    for (let i = newArray.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [newArray[i], newArray[j]] = [newArray[j], newArray[i]];
+    }
+    return newArray;
+};
+
 
 export const PromptSuggestionChip = memo(({ text, onClick }: { text: string; onClick: (text: string) => void }) => (
     <button
@@ -323,14 +361,29 @@ export const PromptSuggestionChip = memo(({ text, onClick }: { text: string; onC
 ));
 
 export const PromptSuggestions = memo(({ isVisible, onSuggestionClick, onDismiss }: { isVisible: boolean; onSuggestionClick: (text: string) => void, onDismiss: () => void }) => {
+    const [currentSuggestions, setCurrentSuggestions] = useState<string[]>([]);
+    
+    const refreshSuggestions = useCallback(() => {
+        setCurrentSuggestions(shuffleArray(FULL_SUGGESTIONS).slice(0, 4));
+    }, []);
+
+    useEffect(() => {
+        refreshSuggestions();
+    }, [refreshSuggestions]);
+    
     if (!isVisible) return null;
     
     return (
         <div className="flex items-center justify-center gap-2 mt-3 flex-wrap px-4">
-            {SUGGESTIONS.map((s) => <PromptSuggestionChip key={s} text={s} onClick={onSuggestionClick} />)}
-            <button onClick={onDismiss} aria-label="Dismiss suggestions" className="p-1 text-gray-400 hover:text-gray-600 rounded-full">
-                <X className="w-4 h-4" />
-            </button>
+            {currentSuggestions.map((s) => <PromptSuggestionChip key={s} text={s} onClick={onSuggestionClick} />)}
+            <div className="flex items-center gap-1">
+                <button onClick={refreshSuggestions} aria-label="Refresh suggestions" className="p-1 text-gray-400 hover:text-gray-600 rounded-full">
+                    <RefreshCw className="w-3 h-3" />
+                </button>
+                 <button onClick={onDismiss} aria-label="Dismiss suggestions" className="p-1 text-gray-400 hover:text-gray-600 rounded-full">
+                    <X className="w-4 h-4" />
+                </button>
+            </div>
         </div>
     );
 });

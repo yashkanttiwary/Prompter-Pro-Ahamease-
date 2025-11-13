@@ -450,7 +450,13 @@ export default function App() {
   return (
     <>
       <div className="flex flex-col h-screen max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 box-border">
-        <Header onOpenSettings={() => dispatch({ type: 'SET_API_KEY_MODAL_OPEN', payload: true })} onNewChat={handleReset} />
+        <Header 
+            onOpenSettings={() => dispatch({ type: 'SET_API_KEY_MODAL_OPEN', payload: true })} 
+            onNewChat={handleReset} 
+            view={view}
+            mode={generationMode}
+            setMode={handleModeChange}
+        />
         
         <Toast toast={toast} onDismiss={() => dispatch({ type: 'SET_TOAST', payload: null })} />
 
@@ -490,7 +496,9 @@ export default function App() {
               </div>
 
               <div className="w-full max-w-3xl mx-auto mt-12 mb-8">
-                   <GenerationModeToggle mode={generationMode} setMode={handleModeChange} />
+                   <div className="mb-3">
+                     <GenerationModeToggle mode={generationMode} setMode={handleModeChange} />
+                   </div>
                    <InputArea 
                       input={input} 
                       setInput={(val) => dispatch({ type: 'SET_INPUT', payload: val })} 
@@ -518,7 +526,7 @@ export default function App() {
 
         {view === 'chat' && (
           <div className="flex-1 flex flex-col w-full max-w-3xl mx-auto overflow-hidden">
-               <div className="flex-1 overflow-y-auto space-y-6 p-2 pb-4" aria-live="polite" aria-atomic="false">
+               <div className="flex-1 overflow-y-auto space-y-6 p-2 pt-4 pb-4" aria-live="polite" aria-atomic="false">
                   {messages.map((msg) => (
                       <MessageBubble
                           key={msg.id}
@@ -531,7 +539,6 @@ export default function App() {
                   <div ref={messagesEndRef} />
               </div>
               <div className="w-full max-w-3xl mx-auto py-4">
-                  <GenerationModeToggle mode={generationMode} setMode={handleModeChange} />
                   <InputArea 
                         input={input} 
                         setInput={(val) => dispatch({ type: 'SET_INPUT', payload: val })} 
@@ -548,11 +555,6 @@ export default function App() {
                         onAnnotate={handleAnnotate}
                         textareaRef={textareaRef}
                   />
-                  <PromptSuggestions 
-                        isVisible={areSuggestionsVisible}
-                        onSuggestionClick={handleSuggestionClick}
-                        onDismiss={() => dispatch({ type: 'SET_SUGGESTIONS_VISIBLE', payload: false })}
-                    />
               </div>
           </div>
         )}
