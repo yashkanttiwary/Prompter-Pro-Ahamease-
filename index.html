@@ -55,7 +55,10 @@
     background-color: hsl(240, 20%, 99%);
     font-family: var(--font-primary);
     color: var(--neutral-800);
-    transition: background-position 0.2s linear;
+    transition: background-position 0.2s linear, background-image 0.5s ease-out;
+  }
+  body.chat-active {
+    background-image: none;
   }
   .focus-within-ring:focus-within {
     border-color: hsla(280, 70%, 80%, 0.5);

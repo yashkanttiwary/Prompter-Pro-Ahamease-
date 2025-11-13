@@ -176,6 +176,15 @@ export default function App() {
     }, 50);
   }, [messages, isProcessing]);
 
+  // Effect to manage body class for background changes
+  useEffect(() => {
+    if (view === 'chat') {
+        document.body.classList.add('chat-active');
+    } else {
+        document.body.classList.remove('chat-active');
+    }
+  }, [view]);
+
   // Effect for interactive orb
   useEffect(() => {
     const mainEl = landingMainRef.current;
@@ -396,10 +405,6 @@ export default function App() {
         }
     };
 
-    const handleAnnotate = () => {
-        dispatch({ type: 'SET_WHITEBOARD_OPEN', payload: true });
-    };
-
   const handleSend = useCallback(async () => {
     if ((!input.trim() && attachedFiles.filter(f => !f.isLoading).length === 0) || isProcessing) return;
 
@@ -490,6 +495,7 @@ export default function App() {
   };
 
   const handleModeChange = (mode: 'PROMPT' | 'BUILD') => {
+      if (isProcessing) return;
       dispatch({ type: 'SET_GENERATION_MODE', payload: mode });
   };
 
@@ -514,6 +520,7 @@ export default function App() {
             view={view}
             mode={generationMode}
             setMode={handleModeChange}
+            isProcessing={isProcessing}
         />
         
         <Toast toast={toast} onDismiss={() => dispatch({ type: 'SET_TOAST', payload: null })} />
@@ -542,7 +549,7 @@ export default function App() {
 
         {view === 'landing' && (
           <main ref={landingMainRef} className="flex-1 flex flex-col items-center overflow-y-auto non-selectable">
-              <div className="flex flex-col items-center text-center mt-20 sm:mt-24 gap-4">
+              <div className="flex flex-col items-center text-center mt-12 sm:mt-16 gap-4">
                   <div 
                     className="brand-icon w-24 h-24 mb-4 rounded-full"
                     style={{
@@ -555,7 +562,7 @@ export default function App() {
 
               <div className="w-full max-w-3xl mx-auto mt-12 mb-8">
                    <div className="mb-3">
-                     <GenerationModeToggle mode={generationMode} setMode={handleModeChange} />
+                     <GenerationModeToggle mode={generationMode} setMode={handleModeChange} isProcessing={isProcessing} />
                    </div>
                    <InputArea 
                       input={input} 
@@ -570,7 +577,6 @@ export default function App() {
                       onToggleListening={handleToggleListening}
                       isListening={isListening}
                       isSpeechRecognitionSupported={!!recognitionRef.current}
-                      onAnnotate={handleAnnotate}
                       textareaRef={textareaRef}
                    />
                    <PromptSuggestions 
@@ -610,7 +616,6 @@ export default function App() {
                         onToggleListening={handleToggleListening}
                         isListening={isListening}
                         isSpeechRecognitionSupported={!!recognitionRef.current}
-                        onAnnotate={handleAnnotate}
                         textareaRef={textareaRef}
                   />
               </div>

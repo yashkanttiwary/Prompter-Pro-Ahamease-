@@ -1,7 +1,7 @@
 import React, { useRef, useState, useEffect, useCallback, memo } from 'react';
 import { 
     Copy, Check, CheckCircle, XCircle, 
-    Paperclip, Mic, X, FileText, MousePointer2, Brush, Eraser, Undo2, Redo2, Trash2, Settings, Plus,
+    Paperclip, Mic, X, FileText, Brush, Eraser, Undo2, Redo2, Trash2, Settings, Plus,
     Lightbulb, Bot, RefreshCw
 } from 'lucide-react';
 import { Message, AttachedFile, User } from './types';
@@ -132,7 +132,7 @@ export const MessageBubble: React.FC<{ msg: Message; onCopy: (text: string, id: 
   
   return (
     <div className={`flex flex-col ${isUser ? 'items-end' : 'items-start'} animate-slide-in-bottom`}>
-      <div className={`message-bubble ${isUser ? 'is-user' : 'is-assistant'} max-w-3xl w-full ${isUser ? 'bg-[#FEFAF7] text-[--neutral-800]' : 'bg-white text-[--neutral-800]'} shadow-[var(--shadow-md)]`}>
+      <div className={`message-bubble ${isUser ? 'is-user' : 'is-assistant'} max-w-3xl ${isUser ? 'w-fit' : 'w-full'} ${isUser ? 'bg-[#F1F2F5] text-[--neutral-800]' : 'bg-white text-[--neutral-800]'} shadow-[var(--shadow-md)]`}>
         <div className="p-5">
            {isStreaming && !hasContent && (
                <div className="flex items-center gap-2">
@@ -145,19 +145,29 @@ export const MessageBubble: React.FC<{ msg: Message; onCopy: (text: string, id: 
         </div>
         {msg.type === 'prompt' && (
           <div className="p-5 pt-0 space-y-4">
-            <div className="border-2 border-[hsl(280,70%,85%)] rounded-lg bg-[hsl(280,70%,98%)] overflow-hidden">
-              <div className="bg-[--primary] text-white px-4 py-2 flex items-center justify-between">
-                <span className="font-semibold text-sm">📋 Production-Ready Prompt</span>
+            <div className="bg-[--neutral-50] rounded-lg overflow-hidden border border-gray-200/80 shadow-sm">
+              <div className="px-4 py-2 border-b border-gray-200/80 flex items-center justify-between bg-white/50">
+                <span className="text-xs text-gray-500 font-mono select-none non-selectable">PROMPT</span>
                 <button
                   onClick={() => onCopy(msg.promptData.content, msg.id)}
-                  className="flex items-center gap-2 bg-[hsl(280,70%,50%)] hover:bg-[hsl(280,70%,45%)] px-3 py-1 rounded-full text-sm transition-colors"
-                  aria-label="Copy prompt"
+                  className="flex items-center gap-2 text-gray-600 hover:text-[--neutral-900] text-sm transition-colors"
+                  aria-label="Copy prompt code"
                 >
-                  {copiedId === msg.id ? <><Check className="w-4 h-4" /> Copied!</> : <><Copy className="w-4 h-4" /> Copy</>}
+                  {copiedId === msg.id ? (
+                    <>
+                      <Check className="w-4 h-4 text-green-600" />
+                      <span className="text-sm font-medium">Copied!</span>
+                    </>
+                  ) : (
+                    <>
+                      <Copy className="w-4 h-4" />
+                      <span className="text-sm font-medium">Copy code</span>
+                    </>
+                  )}
                 </button>
               </div>
-              <div className="p-4 max-h-96 overflow-y-auto bg-white custom-scrollbar">
-                <pre className="text-xs font-mono whitespace-pre-wrap text-[--neutral-800]">{msg.promptData.content}</pre>
+              <div className="p-4 max-h-96 overflow-y-auto custom-scrollbar">
+                <pre className="text-sm font-mono whitespace-pre-wrap text-[--neutral-800] leading-relaxed">{msg.promptData.content}</pre>
               </div>
             </div>
           </div>
@@ -168,12 +178,13 @@ export const MessageBubble: React.FC<{ msg: Message; onCopy: (text: string, id: 
 };
 
 
-export const Header = memo(({ onOpenSettings, onNewChat, view, mode, setMode }: { 
+export const Header = memo(({ onOpenSettings, onNewChat, view, mode, setMode, isProcessing }: { 
     onOpenSettings: () => void; 
     onNewChat: () => void; 
     view: 'landing' | 'chat';
     mode: 'PROMPT' | 'BUILD';
     setMode: (mode: 'PROMPT' | 'BUILD') => void;
+    isProcessing: boolean;
 }) => (
     <header className="py-8 w-full flex-shrink-0">
         <div className="flex justify-between items-center">
@@ -186,7 +197,7 @@ export const Header = memo(({ onOpenSettings, onNewChat, view, mode, setMode }: 
 
             <div className="flex-1 flex justify-center">
                 {view === 'chat' && (
-                    <GenerationModeToggle mode={mode} setMode={setMode} />
+                    <GenerationModeToggle mode={mode} setMode={setMode} isProcessing={isProcessing} />
                 )}
             </div>
 
@@ -262,7 +273,7 @@ const FilePreview = ({ files, onRemoveFile }: { files: AttachedFile[], onRemoveF
     );
 };
 
-export const InputArea = ({ input, setInput, handleSend, handleKeyPress, isProcessing, apiKeyError, attachedFiles, onFileChange, onRemoveFile, onToggleListening, isListening, isSpeechRecognitionSupported, onAnnotate, textareaRef }: { input: string; setInput: (value: string) => void; handleSend: () => void; handleKeyPress: (e: React.KeyboardEvent<HTMLTextAreaElement>) => void; isProcessing: boolean; apiKeyError: boolean; attachedFiles: AttachedFile[]; onFileChange: (files: FileList | null) => void; onRemoveFile: (index: number) => void; onToggleListening: () => void; isListening: boolean; isSpeechRecognitionSupported: boolean; onAnnotate: () => void; textareaRef: React.RefObject<HTMLTextAreaElement> }) => {
+export const InputArea = ({ input, setInput, handleSend, handleKeyPress, isProcessing, apiKeyError, attachedFiles, onFileChange, onRemoveFile, onToggleListening, isListening, isSpeechRecognitionSupported, textareaRef }: { input: string; setInput: (value: string) => void; handleSend: () => void; handleKeyPress: (e: React.KeyboardEvent<HTMLTextAreaElement>) => void; isProcessing: boolean; apiKeyError: boolean; attachedFiles: AttachedFile[]; onFileChange: (files: FileList | null) => void; onRemoveFile: (index: number) => void; onToggleListening: () => void; isListening: boolean; isSpeechRecognitionSupported: boolean; textareaRef: React.RefObject<HTMLTextAreaElement> }) => {
     const [isDraggingOver, setIsDraggingOver] = useState(false);
     const fileInputRef = useRef<HTMLInputElement>(null);
     const isTyping = input.trim().length > 0;
@@ -294,18 +305,14 @@ export const InputArea = ({ input, setInput, handleSend, handleKeyPress, isProce
                 )}
                 <FilePreview files={attachedFiles} onRemoveFile={onRemoveFile} />
                 <div className="flex items-center gap-2 p-2.5 sm:p-3">
+                     <button onClick={() => fileInputRef.current?.click()} className="cursor-pointer p-2.5 rounded-lg hover:bg-black/5 text-slate-600 transition-colors" aria-label="Attach file">
+                        <Plus className="w-5 h-5" />
+                    </button>
                     <div className={`transition-all duration-300 ${isTyping ? 'w-8 opacity-100 mr-1' : 'w-0 opacity-0'}`}>
                         {isTyping && <TypingIndicatorOrb />}
                     </div>
-                     <button onClick={() => fileInputRef.current?.click()} className="cursor-pointer p-2.5 rounded-lg hover:bg-black/5 text-slate-600 transition-colors" aria-label="Attach file">
-                        <Paperclip className="w-5 h-5" />
-                    </button>
                     <input id="file-upload" type="file" multiple className="hidden" ref={fileInputRef} onChange={(e) => onFileChange(e.target.files)} accept="image/png, image/jpeg, image/webp, text/plain, application/pdf" />
                     
-                    <button onClick={onAnnotate} className="w-10 h-10 flex items-center justify-center rounded-lg hover:bg-black/5 text-slate-600 transition-colors" aria-label="Open whiteboard for annotation">
-                        <MousePointer2 className="w-5 h-5" />
-                    </button>
-
                     <textarea
                         ref={textareaRef}
                         value={input}
@@ -333,7 +340,11 @@ export const InputArea = ({ input, setInput, handleSend, handleKeyPress, isProce
                             className="w-10 h-10 flex items-center justify-center bg-[--neutral-800] rounded-lg text-white transition-all duration-200 transform hover:bg-[--neutral-900] hover:scale-105 disabled:bg-slate-300 disabled:text-slate-500 disabled:cursor-not-allowed disabled:transform-none disabled:opacity-70"
                             aria-label="Send message"
                         >
-                           <SendIcon className="w-5 h-5" />
+                           {isProcessing ? (
+                                <RefreshCw className="w-5 h-5 animate-spin" />
+                            ) : (
+                                <SendIcon className="w-5 h-5" />
+                            )}
                         </button>
                     </div>
                 </div>
@@ -342,24 +353,26 @@ export const InputArea = ({ input, setInput, handleSend, handleKeyPress, isProce
     );
 };
 
-export const GenerationModeToggle = memo(({ mode, setMode }: { mode: 'PROMPT' | 'BUILD'; setMode: (mode: 'PROMPT' | 'BUILD') => void; }) => (
+export const GenerationModeToggle = memo(({ mode, setMode, isProcessing }: { mode: 'PROMPT' | 'BUILD'; setMode: (mode: 'PROMPT' | 'BUILD') => void; isProcessing: boolean }) => (
     <div className="p-1 bg-white/70 backdrop-blur-xl border border-gray-200/50 rounded-full flex items-center w-fit mx-auto shadow-sm">
         <button
             onClick={() => setMode('PROMPT')}
-            className={`flex items-center gap-2 px-4 py-1.5 rounded-full text-sm font-medium transition-all duration-200 ${mode === 'PROMPT' ? 'bg-white shadow text-gray-800' : 'text-gray-500 hover:text-gray-700'}`}
+            disabled={isProcessing}
+            className={`flex items-center gap-2 px-4 py-1.5 rounded-full text-sm font-medium transition-all duration-200 ${mode === 'PROMPT' ? 'bg-white shadow text-gray-800' : 'text-gray-500 hover:text-gray-700'} disabled:opacity-70 disabled:cursor-not-allowed`}
             aria-pressed={mode === 'PROMPT'}
             title="Directly send your input to the model for a single-shot prompt generation."
         >
-            <Lightbulb className="w-4 h-4" />
+            <Lightbulb className={`w-4 h-4 ${isProcessing && mode === 'PROMPT' ? 'animate-spin' : ''}`} />
             Direct Prompt
         </button>
         <button
             onClick={() => setMode('BUILD')}
-            className={`flex items-center gap-2 px-4 py-1.5 rounded-full text-sm font-medium transition-all duration-200 ${mode === 'BUILD' ? 'bg-white shadow text-gray-800' : 'text-gray-500 hover:text-gray-700'}`}
+            disabled={isProcessing}
+            className={`flex items-center gap-2 px-4 py-1.5 rounded-full text-sm font-medium transition-all duration-200 ${mode === 'BUILD' ? 'bg-white shadow text-gray-800' : 'text-gray-500 hover:text-gray-700'} disabled:opacity-70 disabled:cursor-not-allowed`}
             aria-pressed={mode === 'BUILD'}
             title="Engage in a conversation with the AI to collaboratively build and refine your prompt."
         >
-            <Bot className="w-4 h-4" />
+            <Bot className={`w-4 h-4 ${isProcessing && mode === 'BUILD' ? 'animate-spin' : ''}`} />
             Build with AI
         </button>
     </div>
