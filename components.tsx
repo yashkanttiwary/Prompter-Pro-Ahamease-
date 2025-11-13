@@ -2,46 +2,35 @@ import React, { useRef, useState, useEffect, useCallback, memo } from 'react';
 import { 
     Copy, Check, CheckCircle, XCircle, 
     Paperclip, Mic, X, FileText, Brush, Eraser, Undo2, Redo2, Trash2, Settings, Plus,
-    Lightbulb, Bot, RefreshCw, Loader2
+    Lightbulb, Bot, RefreshCw, Loader2, AlertTriangle, ArrowUp
 } from 'lucide-react';
 import { Message, AttachedFile, User } from './types';
 
 
-// --- SVG Icons for Ahamease UI ---
-export const SparkleIcon = ({ className = '' }: { className?: string }) => (
-    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className={className}>
-      <path d="M10.788 3.21c.448-1.077 1.976-1.077 2.424 0l2.082 5.007 5.404.433c1.164.093 1.636 1.545.749 2.305l-4.117 3.527 1.257 5.273c.271 1.136-.964 2.033-1.96 1.425L12 18.354 7.373 21.18c-.996.608-2.231-.29-1.96-1.425l1.257-5.273-4.117-3.527c-.887-.76-.415-2.212.749-2.305l5.404-.433 2.082-5.006z" />
-    </svg>
-);
-
-export const SendIcon = ({ className = '' }: { className?: string }) => (
-    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className={className}>
-        <path d="M3.478 2.405a.75.75 0 00-.926.94l2.432 7.905H13.5a.75.75 0 010 1.5H4.984l-2.432 7.905a.75.75 0 00.926.94 60.519 60.519 0 0018.445-8.986.75.75 0 000-1.218A60.517 60.517 0 003.478 2.405z" />
-    </svg>
-);
-
 // --- Language Detection Utility ---
 const detectLanguage = (code: string): string => {
-    if (!code) return 'Text';
-    const lowerCaseCode = code.toLowerCase();
+    // A simple heuristic-based language detector.
+    if (!code) return 'txt';
+    const lowerCaseCode = code.toLowerCase().trim();
 
-    if (/<[a-z][\s\S]*>/i.test(code) && (lowerCaseCode.includes('<html') || lowerCaseCode.includes('<!doctype'))) {
-        return 'HTML';
+    // Prioritize keywords that are less likely to overlap.
+    if (/\b(def|import|from|class|elif|pip|lambda|yield)\b/i.test(lowerCaseCode) && !lowerCaseCode.includes('function')) {
+        return 'python';
     }
-    if (/([a-zA-Z0-9\s\-_#.]+)\s*\{[\s\S]*?\}/.test(code) && (lowerCaseCode.includes('color:') || lowerCaseCode.includes('font-size:'))) {
-        return 'CSS';
+    if (/\b(const|let|var|function|=>|import|from|export|class|extends|document|window)\b/i.test(lowerCaseCode) && !lowerCaseCode.includes('public class')) {
+        return 'javascript';
     }
-    if (/\b(select\s+\*|select\s+[\w,]+\s+from|insert\s+into|update\s+[\w]+\s+set|delete\s+from)\b/.test(lowerCaseCode)) {
-        return 'SQL';
+     if (/\b(SELECT|FROM|WHERE|INSERT INTO|UPDATE|DELETE FROM|GROUP BY|ORDER BY)\b/i.test(code)) {
+        return 'sql';
     }
-    if (/\b(function|const|let|var|=>|document|window|import.*from|class\s+\w+\s+extends\s+\w+)\b/.test(lowerCaseCode)) {
-        return 'JavaScript';
+    if (/<[a-z][\s\S]*>/i.test(code) && (lowerCaseCode.includes('<!doctype html>') || lowerCaseCode.includes('<html>'))) {
+        return 'html';
     }
-    if (/\b(def\s+\w+\(|import\s+[\w]+|for\s+\w+\s+in\s+.*:|class\s+\w+:)\b/.test(lowerCaseCode)) {
-        return 'Python';
+    if (/([a-zA-Z0-9\s\-_#.]+)\s*\{[\s\S]*?\}/.test(code) && /:\s*.*?;/.test(code)) {
+        return 'css';
     }
     
-    return 'Text';
+    return 'txt';
 };
 
 
@@ -177,7 +166,7 @@ export const MessageBubble: React.FC<{ msg: Message; onCopy: (text: string, id: 
   const hasAttachments = msg.type === 'chat' && msg.attachedFiles && msg.attachedFiles.length > 0;
   
   const isShowingGeneratingIndicator = isStreaming && !hasContent;
-  const language = msg.type === 'prompt' ? detectLanguage(msg.promptData.content) : '';
+  const language = msg.type === 'prompt' ? detectLanguage(msg.promptData.content) : 'txt';
 
 
   return (
@@ -198,7 +187,7 @@ export const MessageBubble: React.FC<{ msg: Message; onCopy: (text: string, id: 
             <div className="bg-[--neutral-50] rounded-lg overflow-hidden border border-gray-200/80 shadow-sm">
               <div className="px-4 py-2 border-b border-gray-200/80 flex items-center justify-between bg-white/50">
                 <span className="text-xs text-gray-500 font-mono select-none non-selectable">
-                   {language === 'Text' ? 'txt' : language.toLowerCase()}
+                   {language}
                 </span>
                 <button
                   onClick={() => onCopy(msg.promptData.content, msg.id)}
@@ -257,7 +246,7 @@ export const Header = memo(({ onOpenSettings, onNewChat, view, mode, setMode, is
                      <button 
                         onClick={onNewChat}
                         aria-label="Start new chat"
-                        className="hidden sm:inline-flex items-center gap-2 px-4 py-1.5 bg-white rounded-full text-sm font-medium text-gray-800 border border-gray-200/50 shadow-sm hover:text-gray-900 hover:bg-gray-50 transition-colors"
+                        className="hidden sm:inline-flex items-center gap-2 px-4 py-1.5 bg-white/70 backdrop-blur-xl border border-gray-200/50 rounded-full text-sm font-medium text-gray-800 shadow-sm hover:text-gray-900 hover:bg-white/90 transition-colors"
                     >
                         <Plus className="w-4 h-4" />
                         New Chat
@@ -265,7 +254,7 @@ export const Header = memo(({ onOpenSettings, onNewChat, view, mode, setMode, is
                      <button
                         onClick={onOpenSettings}
                         aria-label="Open settings"
-                        className="flex items-center justify-center w-9 h-9 bg-white rounded-full text-gray-800 border border-gray-200/50 shadow-sm hover:text-gray-900 hover:bg-gray-50 transition-colors"
+                        className="flex items-center justify-center w-9 h-9 bg-white/70 backdrop-blur-xl border border-gray-200/50 rounded-full text-gray-800 shadow-sm hover:text-gray-900 hover:bg-white/90 transition-colors"
                     >
                         <Settings className="w-5 h-5" />
                     </button>
@@ -348,37 +337,40 @@ export const InputArea = ({ input, setInput, handleSend, handleKeyPress, isProce
 
     return (
         <div className="w-full max-w-3xl mx-auto" onDragOver={handleDragOver} onDragLeave={handleDragLeave} onDrop={handleDrop}>
-            <div className={`relative bg-white/60 backdrop-blur-xl border rounded-2xl shadow-[var(--shadow-lg)] transition-all duration-250 focus-within-ring ${isDraggingOver ? 'border-[--primary] shadow-2xl' : 'border-white/30'}`}>
+            <div className={`relative bg-white/60 backdrop-blur-xl border rounded-2xl shadow-[var(--shadow-lg)] transition-all duration-250 focus-within-ring flex flex-col ${isDraggingOver ? 'border-[--primary] shadow-2xl' : 'border-white/30'}`}>
                 {isDraggingOver && (
-                    <div className="absolute inset-0 bg-[--primary]/10 rounded-2xl flex items-center justify-center pointer-events-none">
+                    <div className="absolute inset-0 bg-[--primary]/10 rounded-2xl flex items-center justify-center pointer-events-none z-10">
                         <p className="font-semibold text-[--primary]">Drop files to attach</p>
                     </div>
                 )}
                 <FilePreview files={attachedFiles} onRemoveFile={onRemoveFile} />
-                <div className="flex items-center gap-2 p-2.5 sm:p-3">
-                     <button onClick={() => fileInputRef.current?.click()} className="cursor-pointer p-2.5 rounded-lg hover:bg-black/5 text-slate-600 transition-colors" aria-label="Attach file">
-                        <Plus className="w-5 h-5" />
-                    </button>
-                    <div className={`transition-all duration-300 ${isTyping ? 'w-8 opacity-100 mr-1' : 'w-0 opacity-0'}`}>
-                        {isTyping && <TypingIndicatorOrb onClick={onOrbClick} isProcessing={isOrbProcessing} />}
-                    </div>
-                    <input id="file-upload" type="file" multiple className="hidden" ref={fileInputRef} onChange={(e) => onFileChange(e.target.files)} accept="image/png, image/jpeg, image/webp, text/plain, application/pdf" />
-                    
+                <div className="flex-1 p-3">
                     <textarea
                         ref={textareaRef}
                         value={input}
                         onChange={(e) => setInput(e.target.value)}
                         onKeyDown={handleKeyPress}
                         placeholder="Describe the prompt you want to create..."
-                        className="flex-1 w-full border-none outline-none bg-transparent text-base font-normal leading-relaxed text-[--neutral-900] placeholder:text-slate-500 resize-none overflow-y-auto pr-2 custom-scrollbar"
-                        style={{ minHeight: '3rem', maxHeight: '12rem', padding: '0.625rem 0' }} // 10px 0
+                        className="w-full border-none outline-none bg-transparent text-base font-normal leading-relaxed text-[--neutral-900] placeholder:text-slate-500 resize-none overflow-y-hidden custom-scrollbar"
+                        style={{ minHeight: '3rem' }}
                         rows={1}
                         disabled={isProcessing || isOrbProcessing || apiKeyError}
                     />
-                    <div className="flex items-center">
+                </div>
+                <div className="flex items-center justify-between gap-2 p-2.5 sm:p-3 pt-0">
+                    <div className="flex items-center gap-2">
+                        <button onClick={() => fileInputRef.current?.click()} className="cursor-pointer w-10 h-10 flex items-center justify-center rounded-full hover:bg-black/5 text-slate-600 transition-colors" aria-label="Attach file">
+                            <Plus className="w-5 h-5" />
+                        </button>
+                        <input id="file-upload" type="file" multiple className="hidden" ref={fileInputRef} onChange={(e) => onFileChange(e.target.files)} accept="image/png, image/jpeg, image/webp, text/plain, application/pdf" />
+                        <div className={`transition-all duration-300 ${isTyping ? 'w-8 opacity-100' : 'w-0 opacity-0'}`}>
+                            {isTyping && <TypingIndicatorOrb onClick={onOrbClick} isProcessing={isOrbProcessing} />}
+                        </div>
+                    </div>
+                    <div className="flex items-center gap-2">
                         <button 
                             onClick={onToggleListening} 
-                            className={`w-10 h-10 flex items-center justify-center rounded-lg hover:bg-black/5 transition-colors ${isListening ? 'text-[--primary]' : 'text-slate-600'} disabled:opacity-50 disabled:cursor-not-allowed`} 
+                            className={`w-10 h-10 flex items-center justify-center rounded-full hover:bg-black/5 transition-colors ${isListening ? 'text-[--primary]' : 'text-slate-600'} disabled:opacity-50 disabled:cursor-not-allowed`} 
                             aria-label="Use microphone for voice input"
                             disabled={!isSpeechRecognitionSupported}
                             title={!isSpeechRecognitionSupported ? 'Speech recognition not supported in this browser' : 'Use microphone'}
@@ -388,13 +380,13 @@ export const InputArea = ({ input, setInput, handleSend, handleKeyPress, isProce
                         <button
                             onClick={handleSend}
                             disabled={(!input.trim() && attachedFiles.filter(f => !f.isLoading).length === 0) || isProcessing || apiKeyError}
-                            className="w-10 h-10 flex items-center justify-center bg-[--neutral-800] rounded-lg text-white transition-all duration-200 transform hover:bg-[--neutral-900] hover:scale-105 disabled:bg-slate-300 disabled:text-slate-500 disabled:cursor-not-allowed disabled:transform-none disabled:opacity-70"
+                            className="w-10 h-10 flex items-center justify-center bg-[--neutral-800] rounded-full text-white transition-all duration-200 transform hover:bg-[--neutral-900] hover:scale-105 disabled:bg-slate-300 disabled:text-slate-500 disabled:cursor-not-allowed disabled:transform-none disabled:opacity-70"
                             aria-label="Send message"
                         >
                            {isProcessing ? (
                                 <RefreshCw className="w-5 h-5 animate-spin" />
                             ) : (
-                                <SendIcon className="w-5 h-5" />
+                                <ArrowUp className="w-5 h-5" />
                             )}
                         </button>
                     </div>
@@ -457,7 +449,7 @@ const shuffleArray = <T,>(array: T[]): T[] => {
 export const PromptSuggestionChip = memo(({ text, onClick }: { text: string; onClick: (text: string) => void }) => (
     <button
         onClick={() => onClick(text)}
-        className="px-3 py-1.5 bg-white/60 backdrop-blur-xl border border-gray-200/50 rounded-full text-xs text-[--neutral-700] hover:bg-black/5 hover:border-black/10 transition-colors shadow-sm"
+        className="px-3 py-1.5 bg-white/60 backdrop-blur-xl border border-white/30 rounded-full text-xs text-slate-700 hover:bg-white/80 hover:border-white/50 hover:text-slate-900 hover:scale-105 transition-all duration-200 shadow-md"
     >
         {text}
     </button>
@@ -480,10 +472,10 @@ export const PromptSuggestions = memo(({ isVisible, onSuggestionClick, onDismiss
         <div className="flex items-center justify-center gap-2 mt-3 flex-wrap px-4">
             {currentSuggestions.map((s) => <PromptSuggestionChip key={s} text={s} onClick={onSuggestionClick} />)}
             <div className="flex items-center gap-1">
-                <button onClick={refreshSuggestions} aria-label="Refresh suggestions" className="p-1 text-gray-400 hover:text-gray-600 rounded-full">
+                <button onClick={refreshSuggestions} aria-label="Refresh suggestions" className="p-1.5 text-gray-400 hover:text-gray-600 rounded-full transition-colors bg-white/50 hover:bg-white/80">
                     <RefreshCw className="w-3 h-3" />
                 </button>
-                 <button onClick={onDismiss} aria-label="Dismiss suggestions" className="p-1 text-gray-400 hover:text-gray-600 rounded-full">
+                 <button onClick={onDismiss} aria-label="Dismiss suggestions" className="p-1.5 text-gray-400 hover:text-gray-600 rounded-full transition-colors bg-white/50 hover:bg-white/80">
                     <X className="w-4 h-4" />
                 </button>
             </div>
@@ -499,11 +491,17 @@ export const Toast = ({ toast, onDismiss }: { toast: { message: string, type: 's
     return (
         <div
             role="alert"
-            className={`fixed top-5 right-5 max-w-sm w-full bg-white shadow-[var(--shadow-lg)] rounded-lg p-4 flex items-center gap-3 border-l-4 ${isSuccess ? 'border-green-500' : 'border-red-500'} animate-fade-in-down z-50`}
+            className={`fixed top-5 right-5 max-w-sm w-full bg-white/70 backdrop-blur-xl shadow-2xl rounded-xl border border-white/30 p-4 flex items-center gap-4 z-50 animate-slide-in-bottom`}
         >
-            {isSuccess ? <CheckCircle className="w-6 h-6 text-green-500" /> : <XCircle className="w-6 h-6 text-red-500" />}
-            <p className="text-sm font-medium text-[--neutral-800] flex-1">{toast.message}</p>
-            <button onClick={onDismiss} aria-label="Dismiss notification" className="ml-auto text-[--neutral-500] hover:text-[--neutral-800] flex-shrink-0">
+            <div className={`relative flex-shrink-0 w-8 h-8 flex items-center justify-center rounded-full ${isSuccess ? 'bg-green-500/10' : 'bg-red-500/10'}`}>
+                {isSuccess 
+                    ? <CheckCircle className="w-5 h-5 text-green-600" /> 
+                    : <XCircle className="w-5 h-5 text-red-600" />
+                }
+                <div className={`absolute inset-0 rounded-full ${isSuccess ? 'shadow-[0_0_12px_2px_rgba(22,163,74,0.4)]' : 'shadow-[0_0_12px_2px_rgba(239,68,68,0.4)]'} animate-ping opacity-50`}></div>
+            </div>
+            <p className="text-sm font-medium text-slate-800 flex-1">{toast.message}</p>
+            <button onClick={onDismiss} aria-label="Dismiss notification" className="ml-auto text-slate-500 hover:text-slate-800 flex-shrink-0 rounded-full p-1 hover:bg-black/5 transition-colors">
                 <X className="w-5 h-5" />
             </button>
         </div>
@@ -533,38 +531,51 @@ export const ApiKeyModal = ({ isOpen, onClose, onSave, showToast }: { isOpen: bo
     }
 
     return (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center" onClick={onClose} role="dialog" aria-modal="true">
-            <div className="bg-white rounded-xl shadow-2xl w-full max-w-md p-6 m-4" onClick={e => e.stopPropagation()}>
-                <div className="flex justify-between items-center mb-4">
-                    <h2 className="text-xl font-bold text-[--neutral-900]">API Key Settings</h2>
-                    <button onClick={onClose} className="text-gray-400 hover:text-gray-600" aria-label="Close settings">
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={onClose} role="dialog" aria-modal="true">
+            <div 
+                className="bg-white/70 backdrop-blur-2xl rounded-2xl shadow-2xl w-full max-w-md p-6 border border-white/40 animate-slide-in-bottom" 
+                onClick={e => e.stopPropagation()}
+                style={{ animationDuration: '0.3s' }}
+            >
+                <div className="flex justify-between items-center mb-6">
+                    <h2 className="text-2xl font-bold text-slate-900">API Key Settings</h2>
+                    <button onClick={onClose} className="text-slate-400 hover:text-slate-600 rounded-full p-1 hover:bg-black/5 transition-colors" aria-label="Close settings">
                         <X className="w-6 h-6" />
                     </button>
                 </div>
-                <div className="bg-yellow-50 border-l-4 border-yellow-400 text-yellow-800 p-3 rounded-md text-xs mb-4">
-                    <strong>Security Notice:</strong> Your key is saved locally in your browser. Do not use this app on shared or public computers.
+
+                <div className="bg-amber-400/10 backdrop-blur-sm rounded-lg p-3 text-amber-900 flex items-start gap-3 text-xs mb-6 border border-amber-400/20 shadow-inner">
+                    <AlertTriangle className="w-5 h-5 text-amber-500 mt-0.5 flex-shrink-0"/>
+                    <div>
+                        <strong className="font-semibold">Security Notice:</strong> Your key is saved locally in your browser. Do not use this app on shared or public computers.
+                    </div>
                 </div>
-                <div className="mb-4">
-                    <label htmlFor="apiKeyInput" className="block text-sm font-medium text-gray-700 mb-1">Gemini API Key</label>
+
+                <div className="mb-6">
+                    <label htmlFor="apiKeyInput" className="block text-sm font-medium text-slate-700 mb-2">Gemini API Key</label>
                     <input
                         id="apiKeyInput"
                         type="password"
                         value={apiKey}
                         onChange={e => setApiKey(e.target.value)}
                         placeholder="Enter your API key"
-                        className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-[--primary] focus:border-[--primary] transition placeholder:text-gray-500"
+                        className="w-full px-4 py-2.5 bg-white/40 border border-white/20 rounded-lg shadow-inner text-slate-800 placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-purple-400/50 focus:border-purple-400 transition"
                         autoComplete="off"
                     />
                 </div>
+
                 <div className="flex justify-between items-center">
-                    <button onClick={handleClear} className="px-4 py-2 text-sm text-red-600 rounded-md hover:bg-red-50 transition">
+                    <button onClick={handleClear} className="px-4 py-2 text-sm font-medium text-red-600 rounded-lg hover:bg-red-500/10 transition-colors">
                         Clear Key
                     </button>
                     <div className="flex gap-3">
-                        <button onClick={onClose} className="px-4 py-2 bg-gray-100 text-gray-800 rounded-md hover:bg-gray-200 transition">
+                        <button onClick={onClose} className="px-5 py-2.5 bg-white/50 text-slate-800 font-medium rounded-lg hover:bg-white/80 transition-colors shadow-md border border-white/20">
                             Cancel
                         </button>
-                        <button onClick={handleSave} className="px-4 py-2 bg-[--primary] text-white rounded-md hover:bg-opacity-90 transition">
+                        <button 
+                            onClick={handleSave} 
+                            className="px-5 py-2.5 bg-gradient-to-br from-purple-600 to-indigo-600 text-white font-semibold rounded-lg shadow-lg hover:scale-105 transition-transform duration-200"
+                        >
                             Save Key
                         </button>
                     </div>

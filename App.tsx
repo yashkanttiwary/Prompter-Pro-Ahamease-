@@ -270,6 +270,21 @@ export default function App() {
     };
   }, [view]);
 
+  // Effect for auto-resizing textarea
+  useEffect(() => {
+    const textarea = textareaRef.current;
+    if (textarea) {
+        const maxHeight = 192; // 12rem
+        // Reset height to allow shrinking
+        textarea.style.height = 'auto';
+        // Calculate the scroll height and apply it, capped at max height
+        const newHeight = Math.min(textarea.scrollHeight, maxHeight);
+        textarea.style.height = `${newHeight}px`;
+        // Make it scrollable only when it reaches the max height
+        textarea.style.overflowY = textarea.scrollHeight > maxHeight ? 'auto' : 'hidden';
+    }
+  }, [input]);
+
   const showToast = useCallback((message: string, type: 'success' | 'error', duration: number = 5000) => {
       dispatch({ type: 'SET_TOAST', payload: { message, type } });
       setTimeout(() => dispatch({ type: 'SET_TOAST', payload: null }), duration);
