@@ -20,6 +20,31 @@ export const SendIcon = ({ className = '' }: { className?: string }) => (
     </svg>
 );
 
+// --- Language Detection Utility ---
+const detectLanguage = (code: string): string => {
+    if (!code) return 'Text';
+    const lowerCaseCode = code.toLowerCase();
+
+    if (/<[a-z][\s\S]*>/i.test(code) && (lowerCaseCode.includes('<html') || lowerCaseCode.includes('<!doctype'))) {
+        return 'HTML';
+    }
+    if (/([a-zA-Z0-9\s\-_#.]+)\s*\{[\s\S]*?\}/.test(code) && (lowerCaseCode.includes('color:') || lowerCaseCode.includes('font-size:'))) {
+        return 'CSS';
+    }
+    if (/\b(select\s+\*|select\s+[\w,]+\s+from|insert\s+into|update\s+[\w]+\s+set|delete\s+from)\b/.test(lowerCaseCode)) {
+        return 'SQL';
+    }
+    if (/\b(function|const|let|var|=>|document|window|import.*from|class\s+\w+\s+extends\s+\w+)\b/.test(lowerCaseCode)) {
+        return 'JavaScript';
+    }
+    if (/\b(def\s+\w+\(|import\s+[\w]+|for\s+\w+\s+in\s+.*:|class\s+\w+:)\b/.test(lowerCaseCode)) {
+        return 'Python';
+    }
+    
+    return 'Text';
+};
+
+
 // --- Interactive Typing Orb Component ---
 const TypingIndicatorOrb = ({ onClick, isProcessing }: { onClick: () => void; isProcessing: boolean; }) => {
     const orbRef = useRef<HTMLButtonElement>(null);
@@ -152,6 +177,8 @@ export const MessageBubble: React.FC<{ msg: Message; onCopy: (text: string, id: 
   const hasAttachments = msg.type === 'chat' && msg.attachedFiles && msg.attachedFiles.length > 0;
   
   const isShowingGeneratingIndicator = isStreaming && !hasContent;
+  const language = msg.type === 'prompt' ? detectLanguage(msg.promptData.content) : '';
+
 
   return (
     <div className={`flex flex-col ${isUser ? 'items-end' : 'items-start'} animate-slide-in-bottom`}>
@@ -170,11 +197,13 @@ export const MessageBubble: React.FC<{ msg: Message; onCopy: (text: string, id: 
           <div className="p-5 pt-0 space-y-4">
             <div className="bg-[--neutral-50] rounded-lg overflow-hidden border border-gray-200/80 shadow-sm">
               <div className="px-4 py-2 border-b border-gray-200/80 flex items-center justify-between bg-white/50">
-                <span className="text-xs text-gray-500 font-mono select-none non-selectable">PROMPT</span>
+                <span className="text-xs text-gray-500 font-mono select-none non-selectable">
+                   {language === 'Text' ? 'txt' : language.toLowerCase()}
+                </span>
                 <button
                   onClick={() => onCopy(msg.promptData.content, msg.id)}
                   className="flex items-center gap-2 text-gray-600 hover:text-[--neutral-900] text-sm transition-colors"
-                  aria-label="Copy prompt code"
+                  aria-label="Copy prompt"
                 >
                   {copiedId === msg.id ? (
                     <>
@@ -184,7 +213,7 @@ export const MessageBubble: React.FC<{ msg: Message; onCopy: (text: string, id: 
                   ) : (
                     <>
                       <Copy className="w-4 h-4" />
-                      <span className="text-sm font-medium">Copy code</span>
+                      <span className="text-sm font-medium">Copy</span>
                     </>
                   )}
                 </button>
@@ -214,7 +243,6 @@ export const Header = memo(({ onOpenSettings, onNewChat, view, mode, setMode, is
             <div className="flex-1 flex justify-start">
                 <button onClick={onNewChat} className="flex items-center gap-2" aria-label="Ahamease, Start new chat">
                     <span className="text-3xl font-bold text-[--neutral-900]">Ahamease</span>
-                    <SparkleIcon className="w-5 h-5 text-[--primary] -translate-y-2" />
                 </button>
             </div>
 
@@ -225,11 +253,11 @@ export const Header = memo(({ onOpenSettings, onNewChat, view, mode, setMode, is
             </div>
 
             <div className="flex-1 flex justify-end">
-                <div className="flex items-center gap-4">
+                <div className="flex items-center gap-2">
                      <button 
                         onClick={onNewChat}
                         aria-label="Start new chat"
-                        className="hidden sm:inline-flex items-center gap-2 px-4 py-2 bg-white border border-[hsl(240,10%,85%)] rounded-full text-[--neutral-800] text-[15px] font-medium shadow-[var(--shadow-sm)] hover:bg-[--neutral-50] hover:shadow-[var(--shadow-md)] transition-all transform hover:-translate-y-0.5"
+                        className="hidden sm:inline-flex items-center gap-2 px-4 py-1.5 bg-white rounded-full text-sm font-medium text-gray-800 border border-gray-200/50 shadow-sm hover:text-gray-900 hover:bg-gray-50 transition-colors"
                     >
                         <Plus className="w-4 h-4" />
                         New Chat
@@ -237,7 +265,7 @@ export const Header = memo(({ onOpenSettings, onNewChat, view, mode, setMode, is
                      <button
                         onClick={onOpenSettings}
                         aria-label="Open settings"
-                        className="p-2.5 bg-white border border-[hsl(240,10%,85%)] rounded-full text-[--neutral-800] shadow-[var(--shadow-sm)] hover:bg-[--neutral-50] hover:shadow-[var(--shadow-md)] transition-all"
+                        className="flex items-center justify-center w-9 h-9 bg-white rounded-full text-gray-800 border border-gray-200/50 shadow-sm hover:text-gray-900 hover:bg-gray-50 transition-colors"
                     >
                         <Settings className="w-5 h-5" />
                     </button>

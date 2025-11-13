@@ -106,7 +106,7 @@ const initialState: AppState = {
     attachedFiles: [],
     isListening: false,
     isWhiteboardOpen: false,
-    generationMode: 'BUILD',
+    generationMode: 'PROMPT',
     isApiKeyModalOpen: false,
     isConfirmModalOpen: false,
     areSuggestionsVisible: true,
