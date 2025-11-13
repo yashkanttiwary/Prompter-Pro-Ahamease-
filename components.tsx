@@ -9,13 +9,13 @@ import { Message, AttachedFile, User } from './types';
 
 // --- SVG Icons for Ahamease UI ---
 export const SparkleIcon = ({ className = '' }: { className?: string }) => (
-    <svg xmlns="http://www.w.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className={className}>
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className={className}>
       <path d="M10.788 3.21c.448-1.077 1.976-1.077 2.424 0l2.082 5.007 5.404.433c1.164.093 1.636 1.545.749 2.305l-4.117 3.527 1.257 5.273c.271 1.136-.964 2.033-1.96 1.425L12 18.354 7.373 21.18c-.996.608-2.231-.29-1.96-1.425l1.257-5.273-4.117-3.527c-.887-.76-.415-2.212.749-2.305l5.404-.433 2.082-5.006z" />
     </svg>
 );
 
 export const SendIcon = ({ className = '' }: { className?: string }) => (
-    <svg xmlns="http://www.w.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className={className}>
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className={className}>
         <path d="M3.478 2.405a.75.75 0 00-.926.94l2.432 7.905H13.5a.75.75 0 010 1.5H4.984l-2.432 7.905a.75.75 0 00.926.94 60.519 60.519 0 0018.445-8.986.75.75 0 000-1.218A60.517 60.517 0 003.478 2.405z" />
     </svg>
 );
@@ -97,7 +97,7 @@ export const MessageBubble: React.FC<{ msg: Message; onCopy: (text: string, id: 
   
   return (
     <div className={`flex flex-col ${isUser ? 'items-end' : 'items-start'} animate-slide-in-bottom`}>
-      <div className={`max-w-3xl w-full ${isUser ? 'bg-[#FEFAF7] text-[--neutral-800]' : 'bg-white text-[--neutral-800]'} border ${isUser ? 'border-[#FBEFEA]' : 'border-[hsl(240,10%,92%)]'} rounded-xl shadow-[var(--shadow-md)] overflow-hidden`}>
+      <div className={`message-bubble ${isUser ? 'is-user' : 'is-assistant'} max-w-3xl w-full ${isUser ? 'bg-[#FEFAF7] text-[--neutral-800]' : 'bg-white text-[--neutral-800]'} shadow-[var(--shadow-md)]`}>
         <div className="p-5">
            {isStreaming && !hasContent && (
                <div className="flex items-center gap-2">
@@ -121,7 +121,7 @@ export const MessageBubble: React.FC<{ msg: Message; onCopy: (text: string, id: 
                   {copiedId === msg.id ? <><Check className="w-4 h-4" /> Copied!</> : <><Copy className="w-4 h-4" /> Copy</>}
                 </button>
               </div>
-              <div className="p-4 max-h-96 overflow-y-auto bg-white">
+              <div className="p-4 max-h-96 overflow-y-auto bg-white custom-scrollbar">
                 <pre className="text-xs font-mono whitespace-pre-wrap text-[--neutral-800]">{msg.promptData.content}</pre>
               </div>
             </div>
@@ -273,7 +273,7 @@ export const InputArea = ({ input, setInput, handleSend, handleKeyPress, isProce
                         onChange={(e) => setInput(e.target.value)}
                         onKeyDown={handleKeyPress}
                         placeholder="Describe the prompt you want to create..."
-                        className="flex-1 w-full border-none outline-none bg-transparent text-base font-normal leading-relaxed text-[--neutral-900] placeholder:text-slate-500 resize-none overflow-y-auto pr-2"
+                        className="flex-1 w-full border-none outline-none bg-transparent text-base font-normal leading-relaxed text-[--neutral-900] placeholder:text-slate-500 resize-none overflow-y-auto pr-2 custom-scrollbar"
                         style={{ minHeight: '3rem', maxHeight: '12rem', padding: '0.625rem 0' }} // 10px 0
                         rows={1}
                         disabled={isProcessing || apiKeyError}

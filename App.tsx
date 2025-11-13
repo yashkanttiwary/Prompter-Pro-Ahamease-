@@ -205,6 +205,58 @@ export default function App() {
     };
   }, [view]);
 
+  // Effect for dynamic background gradient and click ripple on landing page
+  useEffect(() => {
+    if (view !== 'landing') return;
+    
+    const gridOverlay = document.querySelector('.grid-overlay') as HTMLElement;
+    if (!gridOverlay) return;
+
+    const handleMouseMove = (e: MouseEvent) => {
+      const { clientX, clientY } = e;
+      const { innerWidth, innerHeight } = window;
+
+      const normX = clientX / innerWidth;
+      const normY = clientY / innerHeight;
+
+      requestAnimationFrame(() => {
+        document.documentElement.style.setProperty('--bg-mouse-x-norm', normX.toFixed(3));
+        document.documentElement.style.setProperty('--bg-mouse-y-norm', normY.toFixed(3));
+      });
+    };
+
+    const handleMouseDown = (e: MouseEvent) => {
+        // Prevent ripple on UI elements
+        const target = e.target as HTMLElement;
+        if (target.closest('button, a, input, [role="button"]')) {
+            return;
+        }
+
+        // Restart animation if user clicks rapidly
+        if (gridOverlay.classList.contains('ripple-active')) {
+            gridOverlay.classList.remove('ripple-active');
+            void gridOverlay.offsetWidth; // Trigger reflow to restart animation
+        }
+        
+        gridOverlay.classList.add('ripple-active');
+        
+        // Remove class after animation completes (1500ms animation + 150ms delay)
+        setTimeout(() => {
+            gridOverlay.classList.remove('ripple-active');
+        }, 1650); 
+    };
+
+    document.addEventListener('mousemove', handleMouseMove);
+    document.addEventListener('mousedown', handleMouseDown);
+
+    return () => {
+      document.removeEventListener('mousemove', handleMouseMove);
+      document.removeEventListener('mousedown', handleMouseDown);
+      document.documentElement.style.removeProperty('--bg-mouse-x-norm');
+      document.documentElement.style.removeProperty('--bg-mouse-y-norm');
+    };
+  }, [view]);
+
   const showToast = useCallback((message: string, type: 'success' | 'error', duration: number = 5000) => {
       dispatch({ type: 'SET_TOAST', payload: { message, type } });
       setTimeout(() => dispatch({ type: 'SET_TOAST', payload: null }), duration);
@@ -383,16 +435,18 @@ export default function App() {
     try {
       const stream = generateResponseStream(history, currentInput, phaseForAPI, currentFiles);
       
-      let finalResult: { fullResponse: Message; newHistory: Content[] } | undefined;
+      // FIX: Replaced the stream consumption loop with a standard while loop.
+      // This pattern is more robust for TypeScript's control flow analysis and correctly narrows the type of `result.value`.
       let result = await stream.next();
-      while(!result.done) {
+      while (!result.done) {
         // FIX C1: Do not show raw streaming JSON for structured prompt generation.
         if (phaseForAPI !== 'GENERATION') {
-            dispatch({ type: 'UPDATE_STREAMING_MESSAGE', payload: { content: result.value } });
+          dispatch({ type: 'UPDATE_STREAMING_MESSAGE', payload: { content: result.value } });
         }
         result = await stream.next();
       }
-      finalResult = result.value;
+
+      const finalResult = result.value;
 
       if (finalResult) {
           dispatch({ type: 'SET_HISTORY', payload: finalResult.newHistory });
@@ -526,7 +580,7 @@ export default function App() {
 
         {view === 'chat' && (
           <div className="flex-1 flex flex-col w-full max-w-3xl mx-auto overflow-hidden">
-               <div className="flex-1 overflow-y-auto space-y-6 p-2 pt-4 pb-4" aria-live="polite" aria-atomic="false">
+               <div className="flex-1 overflow-y-auto space-y-6 p-2 pt-4 pb-4 custom-scrollbar" aria-live="polite" aria-atomic="false">
                   {messages.map((msg) => (
                       <MessageBubble
                           key={msg.id}
