@@ -5,45 +5,6 @@ import { generateResponseStream, correctAndCompleteText, generatePromptSuggestio
 import { Header, InputArea, MessageBubble, Toast, Whiteboard, GenerationModeToggle, PromptSuggestions, ApiKeyModal, ConfirmModal } from './components';
 import type { Content } from '@google/genai';
 
-// --- Web Speech API Types for TypeScript ---
-interface SpeechRecognitionEvent extends Event {
-  results: SpeechRecognitionResultList;
-  resultIndex: number;
-}
-interface SpeechRecognitionResult {
-    isFinal: boolean;
-    [index: number]: SpeechRecognitionAlternative;
-}
-interface SpeechRecognitionResultList {
-    length: number;
-    item(index: number): SpeechRecognitionResult;
-    [index: number]: SpeechRecognitionResult;
-}
-interface SpeechRecognitionAlternative {
-    transcript: string;
-    confidence: number;
-}
-interface SpeechRecognition extends EventTarget {
-  continuous: boolean;
-  interimResults: boolean;
-  lang: string;
-  start(): void;
-  stop(): void;
-  onend: () => void;
-  onerror: (event: SpeechRecognitionErrorEvent) => void;
-  // FIX: Added missing 'onresult' property to fix TypeScript error.
-  onresult: (event: SpeechRecognitionEvent) => void;
-}
-interface SpeechRecognitionErrorEvent extends Event {
-    error: string;
-}
-declare var SpeechRecognition: {
-  new (): SpeechRecognition;
-};
-declare var webkitSpeechRecognition: {
-  new (): SpeechRecognition;
-};
-
 // --- State Management with useReducer ---
 type AppState = {
     view: 'landing' | 'chat';
@@ -182,7 +143,7 @@ export default function App() {
   const landingMainRef = useRef<HTMLElement>(null);
 
   useEffect(() => {
-    // FIX H1: Add small delay to ensure DOM has updated before scrolling.
+    // Add small delay to ensure DOM has updated before scrolling.
     setTimeout(() => {
         messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
     }, 50);
@@ -316,7 +277,7 @@ export default function App() {
   }, [fetchSuggestions]);
 
   useEffect(() => {
-    const SpeechRecognitionAPI = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    const SpeechRecognitionAPI = window.SpeechRecognition || window.webkitSpeechRecognition;
     if (SpeechRecognitionAPI) {
       const recognition: SpeechRecognition = new SpeechRecognitionAPI();
       recognition.continuous = false;
@@ -342,7 +303,6 @@ export default function App() {
       recognition.onerror = (event: SpeechRecognitionErrorEvent) => {
         console.error('Speech recognition error', event.error);
         let errorMessage = `Speech recognition error: ${event.error}`;
-        // FIX M2: More helpful microphone error message
         if (event.error === 'not-allowed') {
             errorMessage = 'Microphone access denied. Please check your browser\'s site settings to allow microphone access for this page.';
         }
@@ -366,7 +326,6 @@ export default function App() {
     }
   }, [showToast]);
 
-    // FIX H2: Reworked file handling to provide immediate feedback and avoid stale state.
     const handleFileChange = (files: FileList | null) => {
         if (!files) return;
 
@@ -446,13 +405,7 @@ export default function App() {
   const handleSend = useCallback(async () => {
     if ((!input.trim() && attachedFiles.filter(f => !f.isLoading).length === 0) || isProcessing) return;
 
-    const key = localStorage.getItem('gemini-api-key') || process.env.API_KEY;
-    if (!key) {
-        dispatch({ type: 'SET_API_KEY_ERROR', payload: true });
-        showToast('API Key is missing. Please set it in the settings.', 'error');
-        return;
-    }
-    
+    // API key check is now handled by the service layer, simplifying the component.
     const currentFiles = attachedFiles.filter(f => !f.isLoading);
     const userMessage: Message = { 
         id: `user-${crypto.randomUUID()}`, 
@@ -478,14 +431,9 @@ export default function App() {
     try {
       const stream = generateResponseStream(history, currentInput, phaseForAPI, currentFiles);
       
-      // FIX: Replaced the stream consumption loop with a standard while loop.
-      // This pattern is more robust for TypeScript's control flow analysis and correctly narrows the type of `result.value`.
       let result = await stream.next();
       while (!result.done) {
-        // FIX C1: Do not show raw streaming JSON for structured prompt generation.
         if (phaseForAPI !== 'GENERATION') {
-          // FIX: Add a type guard to ensure the yielded value is a string. This resolves a TypeScript
-          // error where the type of `result.value` was not being correctly narrowed from the generator's union return type.
           if (typeof result.value === 'string') {
             dispatch({ type: 'UPDATE_STREAMING_MESSAGE', payload: { content: result.value } });
           }
@@ -510,6 +458,7 @@ export default function App() {
     } catch (error) {
        console.error("Failed to get AI response:", error);
        const errorMessageText = error instanceof Error ? error.message : 'Sorry, an unexpected error occurred.';
+       // The service now throws specific, user-friendly errors.
        if (error instanceof Error && (error.message.includes("API key") || error.message.includes("API_KEY"))) {
            dispatch({ type: 'SET_API_KEY_ERROR', payload: true });
        }
@@ -634,6 +583,7 @@ export default function App() {
                       isListening={isListening}
                       isSpeechRecognitionSupported={!!recognitionRef.current}
                       textareaRef={textareaRef}
+                      onOpenWhiteboard={() => dispatch({ type: 'SET_WHITEBOARD_OPEN', payload: true })}
                    />
                    <PromptSuggestions 
                         isVisible={areSuggestionsVisible}
@@ -678,6 +628,7 @@ export default function App() {
                         isListening={isListening}
                         isSpeechRecognitionSupported={!!recognitionRef.current}
                         textareaRef={textareaRef}
+                        onOpenWhiteboard={() => dispatch({ type: 'SET_WHITEBOARD_OPEN', payload: true })}
                   />
               </div>
           </div>

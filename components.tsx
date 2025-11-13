@@ -1,4 +1,4 @@
-import React, { useRef, useState, useEffect, useCallback, memo } from 'react';
+import React, { useRef, useState, useEffect, useCallback, memo, CSSProperties } from 'react';
 import { 
     Copy, Check, CheckCircle, XCircle, 
     Paperclip, Mic, X, FileText, Brush, Eraser, Undo2, Redo2, Trash2, Settings, Plus,
@@ -8,29 +8,58 @@ import { Message, AttachedFile, User } from './types';
 
 
 // --- Language Detection Utility ---
+// An improved heuristic-based language detector.
 const detectLanguage = (code: string): string => {
-    // A simple heuristic-based language detector.
-    if (!code) return 'txt';
-    const lowerCaseCode = code.toLowerCase().trim();
+    if (!code) return 'text';
+    const trimmedCode = code.trim();
 
-    // Prioritize keywords that are less likely to overlap.
-    if (/\b(def|import|from|class|elif|pip|lambda|yield)\b/i.test(lowerCaseCode) && !lowerCaseCode.includes('function')) {
-        return 'python';
+    // JSON check (very specific)
+    if ((trimmedCode.startsWith('{') && trimmedCode.endsWith('}')) || (trimmedCode.startsWith('[') && trimmedCode.endsWith(']'))) {
+        try {
+            JSON.parse(trimmedCode);
+            return 'json';
+        } catch (e) { /* not JSON */ }
     }
-    if (/\b(const|let|var|function|=>|import|from|export|class|extends|document|window)\b/i.test(lowerCaseCode) && !lowerCaseCode.includes('public class')) {
-        return 'javascript';
+
+    // Language keywords and patterns with scores
+    const langScores: { [key: string]: number } = {
+        javascript: 0,
+        python: 0,
+        sql: 0,
+        html: 0,
+        css: 0,
+        typescript: 0,
+    };
+
+    // JS/TS features
+    if (/\b(const|let|var|function|async|await|=>|import|export|class|extends|document|window|console\.log)\b/i.test(code)) langScores.javascript += 5;
+    if (/\b(interface|type|public|private|protected|enum|:|string|number|boolean)\b/i.test(code)) langScores.typescript += 5;
+    if (langScores.typescript > 0) langScores.javascript += langScores.typescript; // TS is a superset
+
+    // Python features
+    if (/\b(def|import|from|class|elif|lambda|yield|print\(|self)\b/i.test(code)) langScores.python += 5;
+    if (/^\s{4,}/m.test(code)) langScores.python += 2; // Indentation
+
+    // SQL features
+    if (/\b(SELECT|FROM|WHERE|INSERT\s+INTO|UPDATE|DELETE\s+FROM|GROUP\s+BY|ORDER\s+BY|JOIN|CREATE\s+TABLE)\b/i.test(code)) langScores.sql += 5;
+
+    // HTML features
+    if (/<[a-z][\s\S]*>/i.test(code) && (/\b(<!doctype html>|<html>|<body>|<div>|<p>)\b/i.test(code))) langScores.html += 5;
+
+    // CSS features
+    if (/([a-zA-Z0-9\s\-_#.]+)\s*\{[\s\S]*?\}/.test(code) && /:\s*.*?;/.test(code)) langScores.css += 5;
+
+    // Determine the winner
+    let maxScore = 0;
+    let detectedLang = 'text';
+    for (const lang in langScores) {
+        if (langScores[lang] > maxScore) {
+            maxScore = langScores[lang];
+            detectedLang = lang;
+        }
     }
-     if (/\b(SELECT|FROM|WHERE|INSERT INTO|UPDATE|DELETE FROM|GROUP BY|ORDER BY)\b/i.test(code)) {
-        return 'sql';
-    }
-    if (/<[a-z][\s\S]*>/i.test(code) && (lowerCaseCode.includes('<!doctype html>') || lowerCaseCode.includes('<html>'))) {
-        return 'html';
-    }
-    if (/([a-zA-Z0-9\s\-_#.]+)\s*\{[\s\S]*?\}/.test(code) && /:\s*.*?;/.test(code)) {
-        return 'css';
-    }
-    
-    return 'txt';
+
+    return maxScore > 0 ? detectedLang : 'text';
 };
 
 
@@ -72,17 +101,10 @@ const TypingIndicatorOrb = ({ onClick, isProcessing }: { onClick: () => void; is
             disabled={isProcessing}
             className="typing-orb relative group disabled:cursor-not-allowed"
             aria-label="Correct grammar and complete sentence"
-            title="Correct grammar and complete sentence"
         >
             {isProcessing && (
                 <div className="absolute inset-0 flex items-center justify-center bg-slate-200/50 rounded-full">
                     <RefreshCw className="w-4 h-4 text-slate-600 animate-spin" />
-                </div>
-            )}
-            {!isProcessing && (
-                <div className="absolute bottom-full mb-2 w-max max-w-xs px-3 py-1.5 text-xs font-medium text-white bg-gray-900 rounded-lg shadow-sm opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-10">
-                    Fix & Complete
-                    <div className="absolute left-1/2 -translate-x-1/2 top-full w-0 h-0 border-x-4 border-x-transparent border-t-4 border-t-gray-900"></div>
                 </div>
             )}
         </button>
@@ -166,7 +188,7 @@ export const MessageBubble: React.FC<{ msg: Message; onCopy: (text: string, id: 
   const hasAttachments = msg.type === 'chat' && msg.attachedFiles && msg.attachedFiles.length > 0;
   
   const isShowingGeneratingIndicator = isStreaming && !hasContent;
-  const language = msg.type === 'prompt' ? detectLanguage(msg.promptData.content) : 'txt';
+  const language = msg.type === 'prompt' ? detectLanguage(msg.promptData.content) : 'text';
 
 
   return (
@@ -313,7 +335,7 @@ const FilePreview = ({ files, onRemoveFile }: { files: AttachedFile[], onRemoveF
     );
 };
 
-export const InputArea = ({ input, setInput, handleSend, handleKeyPress, isProcessing, isOrbProcessing, onOrbClick, apiKeyError, attachedFiles, onFileChange, onRemoveFile, onToggleListening, isListening, isSpeechRecognitionSupported, textareaRef }: { input: string; setInput: (value: string) => void; handleSend: () => void; handleKeyPress: (e: React.KeyboardEvent<HTMLTextAreaElement>) => void; isProcessing: boolean; isOrbProcessing: boolean; onOrbClick: () => void; apiKeyError: boolean; attachedFiles: AttachedFile[]; onFileChange: (files: FileList | null) => void; onRemoveFile: (index: number) => void; onToggleListening: () => void; isListening: boolean; isSpeechRecognitionSupported: boolean; textareaRef: React.RefObject<HTMLTextAreaElement> }) => {
+export const InputArea = ({ input, setInput, handleSend, handleKeyPress, isProcessing, isOrbProcessing, onOrbClick, apiKeyError, attachedFiles, onFileChange, onRemoveFile, onToggleListening, isListening, isSpeechRecognitionSupported, textareaRef, onOpenWhiteboard }: { input: string; setInput: (value: string) => void; handleSend: () => void; handleKeyPress: (e: React.KeyboardEvent<HTMLTextAreaElement>) => void; isProcessing: boolean; isOrbProcessing: boolean; onOrbClick: () => void; apiKeyError: boolean; attachedFiles: AttachedFile[]; onFileChange: (files: FileList | null) => void; onRemoveFile: (index: number) => void; onToggleListening: () => void; isListening: boolean; isSpeechRecognitionSupported: boolean; textareaRef: React.RefObject<HTMLTextAreaElement>; onOpenWhiteboard: () => void; }) => {
     const [isDraggingOver, setIsDraggingOver] = useState(false);
     const fileInputRef = useRef<HTMLInputElement>(null);
     const isTyping = input.trim().length > 0;
@@ -363,8 +385,14 @@ export const InputArea = ({ input, setInput, handleSend, handleKeyPress, isProce
                             <Plus className="w-5 h-5" />
                         </button>
                         <input id="file-upload" type="file" multiple className="hidden" ref={fileInputRef} onChange={(e) => onFileChange(e.target.files)} accept="image/png, image/jpeg, image/webp, text/plain, application/pdf" />
-                        <div className={`transition-all duration-300 ${isTyping ? 'w-8 opacity-100' : 'w-0 opacity-0'}`}>
-                            {isTyping && <TypingIndicatorOrb onClick={onOrbClick} isProcessing={isOrbProcessing} />}
+                        
+                        <button onClick={onOpenWhiteboard} className="cursor-pointer w-10 h-10 flex items-center justify-center rounded-full hover:bg-black/5 text-slate-600 transition-colors" aria-label="Open whiteboard">
+                            <Brush className="w-5 h-5" />
+                        </button>
+
+                        <div className={`flex items-center gap-2 overflow-hidden transition-all duration-300 ${isTyping ? 'max-w-[200px] opacity-100' : 'max-w-0 opacity-0'}`}>
+                            <TypingIndicatorOrb onClick={onOrbClick} isProcessing={isOrbProcessing} />
+                            <span className="text-xs font-medium text-slate-500 whitespace-nowrap non-selectable">Fix & Complete</span>
                         </div>
                     </div>
                     <div className="flex items-center gap-2">
@@ -425,10 +453,11 @@ const SuggestionSkeleton = () => (
     <div className="w-full h-8 bg-gray-200/50 rounded-full animate-pulse"></div>
 );
 
-export const PromptSuggestionChip = memo(({ text, onClick }: { text: string; onClick: (text: string) => void }) => (
+export const PromptSuggestionChip = memo(({ text, onClick, style }: { text: string; onClick: (text: string) => void, style: CSSProperties }) => (
     <button
         onClick={() => onClick(text)}
-        className="px-3 py-1.5 bg-white/60 backdrop-blur-xl border border-white/30 rounded-full text-xs text-slate-700 hover:bg-white/80 hover:border-white/50 hover:text-slate-900 hover:scale-105 transition-all duration-200 shadow-md text-left"
+        style={style}
+        className="px-3 py-1.5 bg-white/60 backdrop-blur-xl border border-white/30 rounded-full text-xs text-slate-700 hover:bg-white/80 hover:border-white/50 hover:text-slate-900 hover:scale-105 transition-all duration-200 shadow-md text-left animate-slide-up-fade-in"
     >
         {text}
     </button>
@@ -456,7 +485,14 @@ export const PromptSuggestions = memo(({
             <div className="grid grid-cols-2 gap-2 w-full max-w-lg">
                 {isLoading 
                     ? Array.from({ length: 4 }).map((_, i) => <SuggestionSkeleton key={i} />)
-                    : suggestions.map((s) => <PromptSuggestionChip key={s} text={s} onClick={onSuggestionClick} />)
+                    : suggestions.map((s, i) => (
+                        <PromptSuggestionChip 
+                            key={s} 
+                            text={s} 
+                            onClick={onSuggestionClick} 
+                            style={{ animationDelay: `${i * 100}ms` }}
+                        />
+                    ))
                 }
             </div>
             <div className="flex items-center gap-1 mt-1">
@@ -604,14 +640,16 @@ export const ConfirmModal = ({ isOpen, onClose, onConfirm, title, description }:
     );
 };
 
-
-// --- Floating Whiteboard Component ---
-interface WhiteboardProps {
-    isOpen: boolean;
-    onClose: () => void;
+// --- Floating Whiteboard Component (Refactored for Performance) ---
+interface Point { x: number; y: number; }
+interface Stroke {
+    points: Point[];
+    tool: 'brush' | 'eraser';
+    color: string;
+    size: number;
 }
 
-export const Whiteboard: React.FC<WhiteboardProps> = ({ isOpen, onClose }) => {
+export const Whiteboard: React.FC<{ isOpen: boolean; onClose: () => void; }> = ({ isOpen, onClose }) => {
     const containerRef = useRef<HTMLDivElement>(null);
     const canvasRef = useRef<HTMLCanvasElement>(null);
     const contextRef = useRef<CanvasRenderingContext2D | null>(null);
@@ -619,11 +657,11 @@ export const Whiteboard: React.FC<WhiteboardProps> = ({ isOpen, onClose }) => {
     const isDrawing = useRef(false);
     const isDragging = useRef(false);
     const dragOffset = useRef({ x: 0, y: 0 });
-    const strokes = useRef<any[]>([]);
-    const redoStack = useRef<any[]>([]);
-    const currentStroke = useRef<any[]>([]);
+    const strokes = useRef<Stroke[]>([]);
+    const redoStack = useRef<Stroke[]>([]);
+    const currentPoints = useRef<Point[]>([]);
 
-    const [activeTool, setActiveTool] = useState('brush');
+    const [activeTool, setActiveTool] = useState<'brush' | 'eraser'>('brush');
     const [brushSize, setBrushSize] = useState(8);
     const [color, setColor] = useState('#000000');
     const [historyState, setHistoryState] = useState({ canUndo: false, canRedo: false });
@@ -641,22 +679,22 @@ export const Whiteboard: React.FC<WhiteboardProps> = ({ isOpen, onClose }) => {
         ctx.clearRect(0, 0, canvasRef.current.width, canvasRef.current.height);
 
         strokes.current.forEach(stroke => {
-            if (stroke.length === 0) return;
+            if (stroke.points.length === 0) return;
 
+            // Set properties once per stroke for performance.
+            ctx.lineWidth = stroke.size;
+            ctx.strokeStyle = stroke.tool === 'brush' ? stroke.color : 'rgba(0,0,0,1)';
+            ctx.globalCompositeOperation = stroke.tool === 'brush' ? 'source-over' : 'destination-out';
+            ctx.lineCap = 'round';
+            ctx.lineJoin = 'round';
+            
             ctx.beginPath();
-            ctx.moveTo(stroke[0].x, stroke[0].y);
+            ctx.moveTo(stroke.points[0].x, stroke.points[0].y);
 
-            stroke.forEach((point: any, index: number) => {
-                if (index === 0) return;
-                ctx.lineWidth = point.size;
-                ctx.lineCap = 'round';
-                ctx.lineJoin = 'round';
-                ctx.globalCompositeOperation = point.tool === 'brush' ? 'source-over' : 'destination-out';
-                ctx.strokeStyle = point.tool === 'brush' ? point.color : 'rgba(0,0,0,1)';
-                ctx.lineTo(point.x, point.y);
-                ctx.stroke();
-            });
-            ctx.beginPath(); // Reset path
+            for (let i = 1; i < stroke.points.length; i++) {
+                ctx.lineTo(stroke.points[i].x, stroke.points[i].y);
+            }
+            ctx.stroke();
         });
         updateHistoryState();
     }, [updateHistoryState]);
@@ -683,42 +721,29 @@ export const Whiteboard: React.FC<WhiteboardProps> = ({ isOpen, onClose }) => {
         }
     }, [redrawCanvas]);
     
-    // Draggable header logic
     useEffect(() => {
         const container = containerRef.current;
         if (!container || !isOpen) return;
-
         const startDrag = (e: MouseEvent) => {
-            const header = container.querySelector('.whiteboard-header');
-            if (!header || !header.contains(e.target as Node)) return;
+            const header = (e.target as HTMLElement).closest('.whiteboard-header');
+            if (!header) return;
             isDragging.current = true;
             const rect = container.getBoundingClientRect();
-            dragOffset.current = {
-                x: e.clientX - rect.left,
-                y: e.clientY - rect.top,
-            };
-            container.style.transform = 'none'; // Switch to absolute positioning
+            dragOffset.current = { x: e.clientX - rect.left, y: e.clientY - rect.top };
+            container.style.transform = 'none';
+            container.style.left = `${rect.left}px`;
+            container.style.top = `${rect.top}px`;
         };
-
         const drag = (e: MouseEvent) => {
             if (!isDragging.current) return;
-            // Prevent text selection while dragging
             e.preventDefault();
-            const x = e.clientX - dragOffset.current.x;
-            const y = e.clientY - dragOffset.current.y;
-            container.style.left = `${x}px`;
-            container.style.top = `${y}px`;
+            container.style.left = `${e.clientX - dragOffset.current.x}px`;
+            container.style.top = `${e.clientY - dragOffset.current.y}px`;
         };
-
-        const stopDrag = () => {
-            isDragging.current = false;
-        };
-        
-        // Use document to capture mouse events everywhere
+        const stopDrag = () => { isDragging.current = false; };
         document.addEventListener('mousedown', startDrag);
         document.addEventListener('mousemove', drag);
         document.addEventListener('mouseup', stopDrag);
-
         return () => {
             document.removeEventListener('mousedown', startDrag);
             document.removeEventListener('mousemove', drag);
@@ -726,16 +751,14 @@ export const Whiteboard: React.FC<WhiteboardProps> = ({ isOpen, onClose }) => {
         };
     }, [isOpen]);
 
-    // Drawing logic
     useEffect(() => {
         const canvas = canvasRef.current;
         if (!canvas || !isOpen) return;
-        
         contextRef.current = canvas.getContext('2d');
         const ctx = contextRef.current;
         if (!ctx) return;
         
-        const getPos = (e: MouseEvent | TouchEvent) => {
+        const getPos = (e: MouseEvent | TouchEvent): Point => {
             const rect = canvas.getBoundingClientRect();
             const clientX = 'touches' in e ? e.touches[0].clientX : e.clientX;
             const clientY = 'touches' in e ? e.touches[0].clientY : e.clientY;
@@ -746,34 +769,41 @@ export const Whiteboard: React.FC<WhiteboardProps> = ({ isOpen, onClose }) => {
             e.preventDefault();
             isDrawing.current = true;
             const pos = getPos(e);
-            currentStroke.current = [{ x: pos.x, y: pos.y, tool: activeTool, color, size: brushSize }];
+            currentPoints.current = [pos];
             ctx.beginPath();
             ctx.moveTo(pos.x, pos.y);
+            // Set properties for the live drawing
+            ctx.lineWidth = brushSize;
+            ctx.strokeStyle = activeTool === 'brush' ? color : 'rgba(0,0,0,1)';
+            ctx.globalCompositeOperation = activeTool === 'brush' ? 'source-over' : 'destination-out';
+            ctx.lineCap = 'round';
+            ctx.lineJoin = 'round';
         };
 
         const draw = (e: MouseEvent | TouchEvent) => {
             if (!isDrawing.current) return;
             e.preventDefault();
             const pos = getPos(e);
-            ctx.lineWidth = brushSize;
-            ctx.lineCap = 'round';
-            ctx.lineJoin = 'round';
-            ctx.globalCompositeOperation = activeTool === 'brush' ? 'source-over' : 'destination-out';
-            ctx.strokeStyle = activeTool === 'brush' ? color : 'rgba(0,0,0,1)';
             ctx.lineTo(pos.x, pos.y);
             ctx.stroke();
-            currentStroke.current.push({ x: pos.x, y: pos.y, tool: activeTool, color, size: brushSize });
+            currentPoints.current.push(pos);
         };
 
         const stopDrawing = () => {
             if (!isDrawing.current) return;
             isDrawing.current = false;
-            ctx.beginPath();
-            if (currentStroke.current.length > 1) {
-                strokes.current.push([...currentStroke.current]);
+            ctx.beginPath(); // End current path
+            if (currentPoints.current.length > 1) {
+                const newStroke: Stroke = {
+                    points: [...currentPoints.current],
+                    tool: activeTool,
+                    color,
+                    size: brushSize,
+                };
+                strokes.current.push(newStroke);
                 redoStack.current = [];
             }
-            currentStroke.current = [];
+            currentPoints.current = [];
             updateHistoryState();
         };
 
@@ -796,7 +826,6 @@ export const Whiteboard: React.FC<WhiteboardProps> = ({ isOpen, onClose }) => {
         };
     }, [isOpen, activeTool, brushSize, color, updateHistoryState]);
 
-    // Keyboard shortcuts
     useEffect(() => {
         if (!isOpen) return;
         const handleKeyDown = (e: KeyboardEvent) => {
