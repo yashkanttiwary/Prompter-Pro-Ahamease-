@@ -20,6 +20,41 @@ export const SendIcon = ({ className = '' }: { className?: string }) => (
     </svg>
 );
 
+// --- Interactive Typing Orb Component ---
+const TypingIndicatorOrb = () => {
+    const orbRef = useRef<HTMLDivElement>(null);
+
+    useEffect(() => {
+        const orbEl = orbRef.current;
+        if (!orbEl) return;
+
+        const handleMouseMove = (e: MouseEvent) => {
+            const rect = orbEl.getBoundingClientRect();
+            const x = e.clientX - rect.left;
+            const y = e.clientY - rect.top;
+            orbEl.style.setProperty('--orb-mouse-x', `${(x / rect.width) * 100}%`);
+            orbEl.style.setProperty('--orb-mouse-y', `${(y / rect.height) * 100}%`);
+        };
+
+        const handleMouseLeave = () => {
+            // Reset to default highlight position
+            orbEl.style.setProperty('--orb-mouse-x', `40%`);
+            orbEl.style.setProperty('--orb-mouse-y', `35%`);
+        };
+
+        orbEl.addEventListener('mousemove', handleMouseMove);
+        orbEl.addEventListener('mouseleave', handleMouseLeave);
+
+        return () => {
+            orbEl.removeEventListener('mousemove', handleMouseMove);
+            orbEl.removeEventListener('mouseleave', handleMouseLeave);
+        };
+    }, []);
+
+    return <div ref={orbRef} className="typing-orb"></div>;
+};
+
+
 // --- Reusable Components ---
 export const SafeMarkdown: React.FC<{ text: string, className?: string, isStreaming?: boolean, isUser?: boolean }> = React.memo(({ text, className = '', isStreaming = false, isUser = false }) => {
     const processInlineFormatting = (text: string) => {
@@ -230,6 +265,7 @@ const FilePreview = ({ files, onRemoveFile }: { files: AttachedFile[], onRemoveF
 export const InputArea = ({ input, setInput, handleSend, handleKeyPress, isProcessing, apiKeyError, attachedFiles, onFileChange, onRemoveFile, onToggleListening, isListening, isSpeechRecognitionSupported, onAnnotate, textareaRef }: { input: string; setInput: (value: string) => void; handleSend: () => void; handleKeyPress: (e: React.KeyboardEvent<HTMLTextAreaElement>) => void; isProcessing: boolean; apiKeyError: boolean; attachedFiles: AttachedFile[]; onFileChange: (files: FileList | null) => void; onRemoveFile: (index: number) => void; onToggleListening: () => void; isListening: boolean; isSpeechRecognitionSupported: boolean; onAnnotate: () => void; textareaRef: React.RefObject<HTMLTextAreaElement> }) => {
     const [isDraggingOver, setIsDraggingOver] = useState(false);
     const fileInputRef = useRef<HTMLInputElement>(null);
+    const isTyping = input.trim().length > 0;
 
     const handleDragOver = (e: React.DragEvent) => {
         e.preventDefault();
@@ -258,6 +294,9 @@ export const InputArea = ({ input, setInput, handleSend, handleKeyPress, isProce
                 )}
                 <FilePreview files={attachedFiles} onRemoveFile={onRemoveFile} />
                 <div className="flex items-center gap-2 p-2.5 sm:p-3">
+                    <div className={`transition-all duration-300 ${isTyping ? 'w-8 opacity-100 mr-1' : 'w-0 opacity-0'}`}>
+                        {isTyping && <TypingIndicatorOrb />}
+                    </div>
                      <button onClick={() => fileInputRef.current?.click()} className="cursor-pointer p-2.5 rounded-lg hover:bg-black/5 text-slate-600 transition-colors" aria-label="Attach file">
                         <Paperclip className="w-5 h-5" />
                     </button>

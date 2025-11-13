@@ -441,7 +441,11 @@ export default function App() {
       while (!result.done) {
         // FIX C1: Do not show raw streaming JSON for structured prompt generation.
         if (phaseForAPI !== 'GENERATION') {
-          dispatch({ type: 'UPDATE_STREAMING_MESSAGE', payload: { content: result.value } });
+          // FIX: Add a type guard to ensure the yielded value is a string. This resolves a TypeScript
+          // error where the type of `result.value` was not being correctly narrowed from the generator's union return type.
+          if (typeof result.value === 'string') {
+            dispatch({ type: 'UPDATE_STREAMING_MESSAGE', payload: { content: result.value } });
+          }
         }
         result = await stream.next();
       }
@@ -537,7 +541,7 @@ export default function App() {
         )}
 
         {view === 'landing' && (
-          <main ref={landingMainRef} className="flex-1 flex flex-col items-center overflow-y-auto">
+          <main ref={landingMainRef} className="flex-1 flex flex-col items-center overflow-y-auto non-selectable">
               <div className="flex flex-col items-center text-center mt-20 sm:mt-24 gap-4">
                   <div 
                     className="brand-icon w-24 h-24 mb-4 rounded-full"
