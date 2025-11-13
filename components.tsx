@@ -1,9 +1,8 @@
 
-
 import React, { useRef, useState, useEffect, useCallback, memo } from 'react';
 import { 
-    Copy, Check, ChevronDown, ChevronRight, RefreshCw, CheckCircle, XCircle, 
-    Paperclip, Mic, X, FileText, MousePointer2, Brush, Eraser, Undo2, Redo2, Trash2, Settings, Plus, LogOut
+    Copy, Check, ChevronDown, ChevronRight, CheckCircle, XCircle, 
+    Paperclip, Mic, X, FileText, MousePointer2, Brush, Eraser, Undo2, Redo2, Trash2, Settings, Plus
 } from 'lucide-react';
 import { Message, AttachedFile, User } from './types';
 
@@ -21,26 +20,19 @@ export const SendIcon = ({ className = '' }: { className?: string }) => (
     </svg>
 );
 
-const GoogleIcon = () => (
-    <svg className="w-5 h-5" viewBox="0 0 48 48">
-        <path fill="#FFC107" d="M43.611 20.083H42V20H24v8h11.303c-1.649 4.657-6.08 8-11.303 8c-6.627 0-12-5.373-12-12s5.373-12 12-12c3.059 0 5.842 1.154 7.961 3.039l5.657-5.657C34.046 6.053 29.268 4 24 4C12.955 4 4 12.955 4 24s8.955 20 20 20s20-8.955 20-20c0-1.341-.138-2.65-.389-3.917z"></path>
-        <path fill="#FF3D00" d="M6.306 14.691l6.571 4.819C14.655 15.108 18.961 12 24 12c3.059 0 5.842 1.154 7.961 3.039l5.657-5.657C34.046 6.053 29.268 4 24 4C16.318 4 9.656 8.337 6.306 14.691z"></path>
-        <path fill="#4CAF50" d="M24 44c5.166 0 9.86-1.977 13.409-5.192l-6.19-5.238C29.211 35.091 26.715 36 24 36c-5.222 0-9.519-3.356-11.01-7.914l-6.522 5.025C9.505 39.556 16.227 44 24 44z"></path>
-        <path fill="#1976D2" d="M43.611 20.083H42V20H24v8h11.303c-.792 2.237-2.231 4.16-4.082 5.571l6.19 5.238C42.032 36.371 44 30.651 44 24c0-1.341-.138-2.65-.389-3.917z"></path>
-    </svg>
-);
-
-
 // --- Reusable Components ---
 export const SafeMarkdown: React.FC<{ text: string, className?: string, isStreaming?: boolean }> = React.memo(({ text, className = '', isStreaming = false }) => {
     const processInlineFormatting = (text: string) => {
-        const parts = text.split(/(\*\*.*?\*\*|\*.*?\*)/g);
+        const parts = text.split(/(\*\*.*?\*\*|\*.*?\*|`.*?`)/g);
         return parts.map((part, j) => {
             if (part.startsWith('**') && part.endsWith('**')) {
                 return <strong key={j} className="font-semibold text-[--neutral-900]">{part.slice(2, -2)}</strong>;
             }
             if (part.startsWith('*') && part.endsWith('*')) {
                 return <em key={j} className="italic">{part.slice(1, -1)}</em>;
+            }
+            if (part.startsWith('`') && part.endsWith('`')) {
+                return <code key={j} className="text-sm bg-gray-100 text-red-600 rounded px-1 py-0.5 font-mono">{part.slice(1, -1)}</code>;
             }
             return part;
         });
@@ -65,7 +57,7 @@ export const SafeMarkdown: React.FC<{ text: string, className?: string, isStream
         } else {
             flushList(`ul-${i}`);
             if (line.trim() === '') {
-                elements.push(<p key={i} className="my-1 h-4" />);
+                 if (i !== lines.length -1) elements.push(<p key={i} className="my-1 h-4" />);
             } else {
                 elements.push(<p key={i} className="my-1">{processInlineFormatting(line)}</p>);
             }
@@ -79,6 +71,24 @@ export const SafeMarkdown: React.FC<{ text: string, className?: string, isStream
     return <div className={className}>{elements}{streamingCursor}</div>;
 });
 
+const SmallFilePreview = ({ files }: { files: AttachedFile[] }) => {
+    if (!files || files.length === 0) return null;
+
+    return (
+        <div className="pt-2 flex flex-wrap gap-2">
+            {files.map((file, index) => (
+                <div key={`${file.name}-${index}`} className="bg-white border border-[--neutral-100] rounded-lg px-3 py-2 flex items-center gap-2 text-sm text-[--neutral-800] h-fit shadow-sm max-w-xs">
+                    {file.preview ? (
+                        <img src={file.preview} alt={file.name} className="w-6 h-6 object-cover rounded" />
+                    ) : (
+                        <FileText className="w-5 h-5 text-gray-500 flex-shrink-0" />
+                    )}
+                    <span className="truncate" title={file.name}>{file.name}</span>
+                </div>
+            ))}
+        </div>
+    );
+};
 
 export const ThinkingSection: React.FC<{ msg: Message; index: number; expanded: boolean; onToggle: () => void }> = ({ msg, index, expanded, onToggle }) => {
   if (!msg.thinking || msg.role !== 'assistant') return null;
@@ -124,11 +134,21 @@ export const ThinkingSection: React.FC<{ msg: Message; index: number; expanded: 
 
 export const MessageBubble: React.FC<{ msg: Message; onCopy: (text: string, id: string) => void; copiedId: string | null; onToggleThinking: (id: string) => void; expandedThinking: { [key: string]: boolean }, isStreaming: boolean }> = ({ msg, onCopy, copiedId, onToggleThinking, expandedThinking, isStreaming }) => {
   const isUser = msg.role === 'user';
+  const hasContent = msg.content && msg.content.trim() !== '';
+  const hasAttachments = msg.type === 'chat' && msg.attachedFiles && msg.attachedFiles.length > 0;
+  
   return (
     <div className={`flex flex-col ${isUser ? 'items-end' : 'items-start'}`}>
       <div className={`max-w-3xl w-full ${isUser ? 'bg-white' : 'bg-white'} border border-[hsl(240,10%,92%)] rounded-xl shadow-[var(--shadow-md)] overflow-hidden`}>
         <div className={`p-5 text-[--neutral-800]`}>
-           <SafeMarkdown text={msg.content} isStreaming={isStreaming && !isUser} />
+           {isStreaming && !hasContent && (
+               <div className="flex items-center gap-2">
+                   <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-[--neutral-700]"></div>
+                   <span className="text-sm text-[--neutral-700]">Generating...</span>
+               </div>
+           )}
+           {hasContent && <SafeMarkdown text={msg.content} isStreaming={isStreaming} />}
+           {hasAttachments && <SmallFilePreview files={msg.attachedFiles!} />}
         </div>
         {msg.type === 'prompt' && (
           <div className="p-5 pt-0 space-y-4">
@@ -156,8 +176,8 @@ export const MessageBubble: React.FC<{ msg: Message; onCopy: (text: string, id: 
 };
 
 
-export const Header = memo(({ user, onLogout, onOpenSettings, onNewChat }: { user: User; onLogout: () => void; onOpenSettings: () => void; onNewChat: () => void; }) => (
-    <header className="py-8 w-full">
+export const Header = memo(({ onOpenSettings, onNewChat }: { onOpenSettings: () => void; onNewChat: () => void; }) => (
+    <header className="py-8 w-full flex-shrink-0">
         <div className="flex justify-between items-center">
             <div className="flex items-center gap-2 cursor-pointer">
                 <span className="text-3xl font-bold text-[--neutral-900]">Ahamease</span>
@@ -172,19 +192,6 @@ export const Header = memo(({ user, onLogout, onOpenSettings, onNewChat }: { use
                     <Plus className="w-4 h-4" />
                     New Chat
                 </button>
-                <div className="flex items-center gap-2">
-                    <div className="text-right hidden sm:block">
-                        <p className="font-semibold text-sm text-[--neutral-800]">{user.name}</p>
-                        <p className="text-xs text-[--neutral-600]">{user.email}</p>
-                    </div>
-                    <button
-                        onClick={onLogout}
-                        aria-label="Logout"
-                        className="p-2.5 bg-white border border-[hsl(240,10%,85%)] rounded-full text-red-500 shadow-[var(--shadow-sm)] hover:bg-red-50 hover:shadow-[var(--shadow-md)] transition-all"
-                    >
-                        <LogOut className="w-5 h-5" />
-                    </button>
-                </div>
                  <button
                     onClick={onOpenSettings}
                     aria-label="Open settings"
@@ -195,15 +202,6 @@ export const Header = memo(({ user, onLogout, onOpenSettings, onNewChat }: { use
             </div>
         </div>
     </header>
-));
-
-export const ExampleCard = memo(({ text, onClick }: { text: string; onClick: () => void }) => (
-    <button
-        onClick={onClick}
-        className="w-full text-left p-6 bg-white border border-[--neutral-100] rounded-xl shadow-[var(--shadow-sm)] transition-all duration-250 transform hover:-translate-y-1 hover:border-[--primary] hover:shadow-[var(--shadow-lg)] focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[--primary]"
-    >
-        <p className="text-[15px] text-[--neutral-800] leading-relaxed">{text}</p>
-    </button>
 ));
 
 const FilePreview = ({ files, onRemoveFile }: { files: AttachedFile[], onRemoveFile: (index: number) => void }) => {
@@ -277,7 +275,7 @@ export const InputArea = ({ input, setInput, handleSend, handleKeyPress, isProce
     };
 
     return (
-        <div className="w-full max-w-3xl mx-auto pointer-events-auto" onDragOver={handleDragOver} onDragLeave={handleDragLeave} onDrop={handleDrop}>
+        <div className="w-full max-w-3xl mx-auto" onDragOver={handleDragOver} onDragLeave={handleDragLeave} onDrop={handleDrop}>
             <div className={`relative bg-white/60 backdrop-blur-xl border rounded-2xl shadow-[var(--shadow-lg)] transition-all duration-250 focus-within-ring ${isDraggingOver ? 'border-[--primary] shadow-2xl' : 'border-white/30'}`}>
                 {isDraggingOver && (
                     <div className="absolute inset-0 bg-[--primary]/10 rounded-2xl flex items-center justify-center pointer-events-none">
@@ -291,7 +289,7 @@ export const InputArea = ({ input, setInput, handleSend, handleKeyPress, isProce
                     </button>
                     <input id="file-upload" type="file" multiple className="hidden" ref={fileInputRef} onChange={(e) => onFileChange(e.target.files)} accept="image/png, image/jpeg, image/webp, text/plain, application/pdf" />
                     
-                    <button onClick={onAnnotate} className="w-10 h-10 flex items-center justify-center rounded-lg hover:bg-black/5 text-slate-600 transition-colors" aria-label="Open whiteboard">
+                    <button onClick={onAnnotate} className="w-10 h-10 flex items-center justify-center rounded-lg hover:bg-black/5 text-slate-600 transition-colors" aria-label="Open whiteboard for annotation">
                         <MousePointer2 className="w-5 h-5" />
                     </button>
 
@@ -310,7 +308,7 @@ export const InputArea = ({ input, setInput, handleSend, handleKeyPress, isProce
                         <button 
                             onClick={onToggleListening} 
                             className={`w-10 h-10 flex items-center justify-center rounded-lg hover:bg-black/5 transition-colors ${isListening ? 'text-[--primary]' : 'text-slate-600'} disabled:opacity-50 disabled:cursor-not-allowed`} 
-                            aria-label="Use microphone"
+                            aria-label="Use microphone for voice input"
                             disabled={!isSpeechRecognitionSupported}
                             title={!isSpeechRecognitionSupported ? 'Speech recognition not supported in this browser' : 'Use microphone'}
                         >
@@ -319,8 +317,8 @@ export const InputArea = ({ input, setInput, handleSend, handleKeyPress, isProce
                         <button
                             onClick={handleSend}
                             disabled={(!input.trim() && attachedFiles.filter(f => !f.isLoading).length === 0) || isProcessing || apiKeyError}
-                            className="w-10 h-10 flex items-center justify-center bg-[--neutral-800] rounded-lg text-white transition-all duration-200 transform hover:bg-[--neutral-900] hover:scale-105 disabled:bg-slate-200 disabled:text-slate-500 disabled:cursor-not-allowed disabled:transform-none disabled:opacity-70"
-                            aria-label="Send prompt"
+                            className="w-10 h-10 flex items-center justify-center bg-[--neutral-800] rounded-lg text-white transition-all duration-200 transform hover:bg-[--neutral-900] hover:scale-105 disabled:bg-slate-300 disabled:text-slate-500 disabled:cursor-not-allowed disabled:transform-none disabled:opacity-70"
+                            aria-label="Send message"
                         >
                            <SendIcon className="w-5 h-5" />
                         </button>
@@ -337,6 +335,7 @@ export const GenerationModeToggle = memo(({ mode, setMode }: { mode: 'PROMPT' | 
             onClick={() => setMode('PROMPT')}
             className={`px-5 py-1.5 rounded-full text-sm font-medium transition-all duration-200 ${mode === 'PROMPT' ? 'bg-white shadow text-gray-800' : 'text-gray-500 hover:text-gray-700'}`}
             aria-pressed={mode === 'PROMPT'}
+            title="Directly send your input to the model for a single-shot prompt generation."
         >
             Direct Prompt
         </button>
@@ -344,6 +343,7 @@ export const GenerationModeToggle = memo(({ mode, setMode }: { mode: 'PROMPT' | 
             onClick={() => setMode('BUILD')}
             className={`px-5 py-1.5 rounded-full text-sm font-medium transition-all duration-200 ${mode === 'BUILD' ? 'bg-white shadow text-gray-800' : 'text-gray-500 hover:text-gray-700'}`}
             aria-pressed={mode === 'BUILD'}
+            title="Engage in a conversation with the AI to collaboratively build and refine your prompt."
         >
             Build with AI
         </button>
@@ -360,7 +360,7 @@ const SUGGESTIONS = [
 export const PromptSuggestionChip = memo(({ text, onClick }: { text: string; onClick: (text: string) => void }) => (
     <button
         onClick={() => onClick(text)}
-        className="px-3 py-1.5 bg-white/60 backdrop-blur-xl border border-gray-200/50 rounded-full text-xs text-[--neutral-700] hover:bg-black/5 hover:border-black/10 transition-colors shadow-sm"
+        className="px-3 py-1.5 bg-white/60 backdrop-blur-xl border border-gray-200/50 rounded-full text-xs text-[--neutral-700] hover:bg-black/5 hover:border-black/10 transition-colors shadow-sm focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[--primary]"
     >
         {text}
     </button>
@@ -393,7 +393,7 @@ export const Toast = ({ toast, onDismiss }: { toast: { message: string, type: 's
     );
 };
 
-export const ApiKeyModal = ({ isOpen, onClose, onSave }: { isOpen: boolean; onClose: () => void; onSave: (key: string) => void; }) => {
+export const ApiKeyModal = ({ isOpen, onClose, onSave, showToast }: { isOpen: boolean; onClose: () => void; onSave: (key: string) => void; showToast: (msg: string, type: 'success' | 'error') => void; }) => {
     const [apiKey, setApiKey] = useState('');
 
     useEffect(() => {
@@ -408,19 +408,25 @@ export const ApiKeyModal = ({ isOpen, onClose, onSave }: { isOpen: boolean; onCl
         onSave(apiKey);
         onClose();
     };
+    
+    const handleClear = () => {
+        setApiKey('');
+        localStorage.removeItem('gemini-api-key');
+        showToast('API Key cleared.', 'success');
+    }
 
     return (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center" onClick={onClose} role="dialog" aria-modal="true">
             <div className="bg-white rounded-xl shadow-2xl w-full max-w-md p-6 m-4" onClick={e => e.stopPropagation()}>
                 <div className="flex justify-between items-center mb-4">
                     <h2 className="text-xl font-bold text-[--neutral-900]">API Key Settings</h2>
-                    <button onClick={onClose} className="text-gray-400 hover:text-gray-600">
+                    <button onClick={onClose} className="text-gray-400 hover:text-gray-600" aria-label="Close settings">
                         <X className="w-6 h-6" />
                     </button>
                 </div>
-                <p className="text-sm text-gray-600 mb-4">
-                    Enter your Gemini API key to use the app. Your key is saved locally in your browser and is never sent to our servers.
-                </p>
+                <div className="bg-yellow-50 border-l-4 border-yellow-400 text-yellow-800 p-3 rounded-md text-xs mb-4">
+                    <strong>Security Notice:</strong> Your key is saved locally in your browser. Do not use this app on shared or public computers.
+                </div>
                 <div className="mb-4">
                     <label htmlFor="apiKeyInput" className="block text-sm font-medium text-gray-700 mb-1">Gemini API Key</label>
                     <input
@@ -433,12 +439,38 @@ export const ApiKeyModal = ({ isOpen, onClose, onSave }: { isOpen: boolean; onCl
                         autoComplete="off"
                     />
                 </div>
+                <div className="flex justify-between items-center">
+                    <button onClick={handleClear} className="px-4 py-2 text-sm text-red-600 rounded-md hover:bg-red-50 transition">
+                        Clear Key
+                    </button>
+                    <div className="flex gap-3">
+                        <button onClick={onClose} className="px-4 py-2 bg-gray-100 text-gray-800 rounded-md hover:bg-gray-200 transition">
+                            Cancel
+                        </button>
+                        <button onClick={handleSave} className="px-4 py-2 bg-[--primary] text-white rounded-md hover:bg-opacity-90 transition">
+                            Save Key
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    );
+};
+
+export const ConfirmModal = ({ isOpen, onClose, onConfirm, title, description }: { isOpen: boolean; onClose: () => void; onConfirm: () => void; title: string; description: string }) => {
+    if (!isOpen) return null;
+
+    return (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center" onClick={onClose} role="dialog" aria-modal="true" aria-labelledby="confirm-title">
+            <div className="bg-white rounded-xl shadow-2xl w-full max-w-sm p-6 m-4" onClick={e => e.stopPropagation()}>
+                <h2 id="confirm-title" className="text-xl font-bold text-[--neutral-900] mb-2">{title}</h2>
+                <p className="text-sm text-gray-600 mb-6">{description}</p>
                 <div className="flex justify-end gap-3">
                     <button onClick={onClose} className="px-4 py-2 bg-gray-100 text-gray-800 rounded-md hover:bg-gray-200 transition">
                         Cancel
                     </button>
-                    <button onClick={handleSave} className="px-4 py-2 bg-[--primary] text-white rounded-md hover:bg-opacity-90 transition">
-                        Save Key
+                    <button onClick={onConfirm} className="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 transition">
+                        Confirm
                     </button>
                 </div>
             </div>
@@ -446,37 +478,8 @@ export const ApiKeyModal = ({ isOpen, onClose, onSave }: { isOpen: boolean; onCl
     );
 };
 
-export const LoginPage = ({ onLogin }: { onLogin: () => void }) => {
-    return (
-        <div className="flex flex-col items-center justify-center min-h-screen">
-            <main className="flex-1 flex flex-col items-center justify-center text-center px-4">
-                <div 
-                    className="brand-icon w-24 h-24 mb-6 rounded-full"
-                    style={{ background: 'linear-gradient(135deg, hsl(280, 70%, 60%), hsl(200, 80%, 55%))' }}
-                ></div>
-                <h1 className="text-4xl sm:text-5xl font-bold text-[--neutral-900] tracking-tight">Welcome to Ahamease</h1>
-                <p className="mt-4 max-w-xl text-lg text-[--neutral-700]">
-                    Your AI-powered assistant for building production-ready, enterprise-grade prompts.
-                </p>
-                <div className="mt-10">
-                    <button 
-                        onClick={onLogin}
-                        className="inline-flex items-center gap-3 px-8 py-4 bg-white border border-[hsl(240,10%,85%)] rounded-lg text-[--neutral-800] text-lg font-semibold shadow-[var(--shadow-md)] hover:bg-[--neutral-50] hover:shadow-[var(--shadow-lg)] transition-all transform hover:-translate-y-1"
-                    >
-                        <GoogleIcon />
-                        Sign in with Google
-                    </button>
-                </div>
-            </main>
-            <footer className="py-6 text-center text-sm text-[--neutral-700]">
-                &copy; {new Date().getFullYear()} Ahamease. All rights reserved.
-            </footer>
-        </div>
-    );
-};
 
-
-// --- New Floating Whiteboard Component ---
+// --- Floating Whiteboard Component ---
 interface WhiteboardProps {
     isOpen: boolean;
     onClose: () => void;
@@ -548,11 +551,9 @@ export const Whiteboard: React.FC<WhiteboardProps> = ({ isOpen, onClose }) => {
 
     const handleClear = useCallback(() => {
         if (strokes.current.length > 0) {
-            if (window.confirm('Clear entire canvas? This cannot be undone.')) {
-                strokes.current = [];
-                redoStack.current = [];
-                redrawCanvas();
-            }
+             strokes.current = [];
+             redoStack.current = [];
+             redrawCanvas();
         }
     }, [redrawCanvas]);
     
@@ -716,8 +717,6 @@ export const Whiteboard: React.FC<WhiteboardProps> = ({ isOpen, onClose }) => {
                     <button className="tool-btn" onClick={handleRedo} title="Redo (Ctrl+Y)" disabled={!historyState.canRedo}>
                         <Redo2 className="w-4 h-4" /> Redo
                     </button>
-                </div>
-                <div>
                      <button className="tool-btn" onClick={handleClear} title="Clear All" disabled={!historyState.canUndo}>
                         <Trash2 className="w-4 h-4" /> Clear
                     </button>

@@ -1,10 +1,9 @@
 
-
 import React, { useState, useRef, useEffect, useCallback, useReducer } from 'react';
 import { AlertTriangle, Settings } from 'lucide-react';
-import { Message, AttachedFile, User } from './types';
+import { Message, AttachedFile } from './types';
 import { generateResponseStream } from './services/geminiService';
-import { Header, InputArea, MessageBubble, Toast, Whiteboard, GenerationModeToggle, PromptSuggestions, ApiKeyModal, LoginPage } from './components';
+import { Header, InputArea, MessageBubble, Toast, Whiteboard, GenerationModeToggle, PromptSuggestions, ApiKeyModal, ConfirmModal } from './components';
 import type { Content } from '@google/genai';
 
 // --- Web Speech API Types for TypeScript ---
@@ -31,9 +30,10 @@ interface SpeechRecognition extends EventTarget {
   lang: string;
   start(): void;
   stop(): void;
-  onresult: (event: SpeechRecognitionEvent) => void;
   onend: () => void;
   onerror: (event: SpeechRecognitionErrorEvent) => void;
+  // FIX: Added missing 'onresult' property to fix TypeScript error.
+  onresult: (event: SpeechRecognitionEvent) => void;
 }
 interface SpeechRecognitionErrorEvent extends Event {
     error: string;
@@ -63,6 +63,7 @@ type AppState = {
     isWhiteboardOpen: boolean;
     generationMode: 'PROMPT' | 'BUILD';
     isApiKeyModalOpen: boolean;
+    isConfirmModalOpen: boolean;
 };
 
 type AppAction =
@@ -85,6 +86,7 @@ type AppAction =
     | { type: 'SET_WHITEBOARD_OPEN'; payload: boolean }
     | { type: 'SET_GENERATION_MODE', payload: 'PROMPT' | 'BUILD' }
     | { type: 'SET_API_KEY_MODAL_OPEN', payload: boolean }
+    | { type: 'SET_CONFIRM_MODAL_OPEN', payload: boolean }
     | { type: 'RESET_STATE' };
 
 const initialState: AppState = {
@@ -104,6 +106,7 @@ const initialState: AppState = {
     isWhiteboardOpen: false,
     generationMode: 'BUILD',
     isApiKeyModalOpen: false,
+    isConfirmModalOpen: false,
 };
 
 function appReducer(state: AppState, action: AppAction): AppState {
@@ -137,9 +140,10 @@ function appReducer(state: AppState, action: AppAction): AppState {
         case 'SET_TOAST': return { ...state, toast: action.payload };
         case 'SET_ATTACHED_FILES': return { ...state, attachedFiles: action.payload };
         case 'SET_LISTENING': return { ...state, isListening: action.payload };
-        case 'SET_WHITEBOARD_OPEN': return { ...state, isWhiteboardOpen: false };
+        case 'SET_WHITEBOARD_OPEN': return { ...state, isWhiteboardOpen: action.payload };
         case 'SET_GENERATION_MODE': return { ...state, generationMode: action.payload };
         case 'SET_API_KEY_MODAL_OPEN': return { ...state, isApiKeyModalOpen: action.payload };
+        case 'SET_CONFIRM_MODAL_OPEN': return { ...state, isConfirmModalOpen: action.payload };
         case 'RESET_STATE': return { ...initialState, apiKeyError: state.apiKeyError, view: 'landing' };
         default: return state;
     }
@@ -149,29 +153,15 @@ function appReducer(state: AppState, action: AppAction): AppState {
 // --- Main App Component ---
 export default function App() {
   const [state, dispatch] = useReducer(appReducer, initialState);
-  const { view, messages, history, input, isProcessing, expandedThinking, copiedId, apiKeyError, conversationPhase, promptGenerated, toast, attachedFiles, isListening, isWhiteboardOpen, generationMode, isApiKeyModalOpen } = state;
-
-  const [user, setUser] = useState<User | null>(null);
+  const { view, messages, history, input, isProcessing, expandedThinking, copiedId, apiKeyError, conversationPhase, promptGenerated, toast, attachedFiles, isListening, isWhiteboardOpen, generationMode, isApiKeyModalOpen, isConfirmModalOpen } = state;
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const recognitionRef = useRef<SpeechRecognition | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   useEffect(() => {
-    try {
-        const storedUser = localStorage.getItem('user');
-        if (storedUser) {
-            setUser(JSON.parse(storedUser));
-        }
-    } catch (e) {
-        console.error("Failed to parse user from localStorage", e);
-        localStorage.removeItem('user');
-    }
-  }, []);
-
-  useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages]);
+  }, [messages, isProcessing]);
 
   const showToast = useCallback((message: string, type: 'success' | 'error', duration: number = 5000) => {
       dispatch({ type: 'SET_TOAST', payload: { message, type } });
@@ -183,22 +173,6 @@ export default function App() {
       dispatch({ type: 'SET_API_KEY_ERROR', payload: false });
       showToast('API Key saved successfully!', 'success');
   }, [showToast]);
-
-  const handleLogin = () => {
-    // This is a mock login. In a real app, this would involve an OAuth flow.
-    const mockUser = { name: "Alex Johnson", email: "alex.j@example.com" };
-    localStorage.setItem('user', JSON.stringify(mockUser));
-    setUser(mockUser);
-    showToast(`Welcome, ${mockUser.name}!`, 'success');
-  };
-
-  const handleLogout = () => {
-      localStorage.removeItem('user');
-      setUser(null);
-      dispatch({ type: 'RESET_STATE' });
-      showToast('You have been logged out.', 'success');
-  };
-
 
   useEffect(() => {
     const SpeechRecognitionAPI = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
@@ -226,7 +200,11 @@ export default function App() {
 
       recognition.onerror = (event: SpeechRecognitionErrorEvent) => {
         console.error('Speech recognition error', event.error);
-        showToast(`Speech recognition error: ${event.error}`, 'error');
+        let errorMessage = `Speech recognition error: ${event.error}`;
+        if (event.error === 'not-allowed') {
+            errorMessage = 'Microphone access denied. Please enable it in your browser settings.';
+        }
+        showToast(errorMessage, 'error');
         dispatch({ type: 'SET_LISTENING', payload: false });
       };
       
@@ -257,8 +235,10 @@ export default function App() {
             const supportedTextTypes = ['text/plain'];
             const supportedPdfTypes = ['application/pdf'];
 
+            const currentFiles = [...attachedFiles];
+
             fileArray.forEach((file: File) => {
-                if (attachedFiles.length >= 5) {
+                if (currentFiles.length >= 5) {
                     showToast('You can attach a maximum of 5 files.', 'error');
                     return;
                 }
@@ -269,29 +249,46 @@ export default function App() {
                   content: '',
                   isLoading: true,
                 };
-                dispatch({ type: 'SET_ATTACHED_FILES', payload: [...attachedFiles, filePlaceholder] });
+                currentFiles.push(filePlaceholder);
+                dispatch({ type: 'SET_ATTACHED_FILES', payload: [...currentFiles] });
 
                 const reader = new FileReader();
                 
-                const updateFile = (content: string, preview?: string) => {
-                    dispatch({ type: 'SET_ATTACHED_FILES', payload: state.attachedFiles.map(f => f.name === file.name && f.isLoading ? { ...f, content, preview, isLoading: false } : f) });
+                reader.onload = (e) => {
+                    const result = e.target?.result as string;
+                    let content: string, preview: string | undefined;
+
+                    if (supportedImageTypes.includes(file.type) || supportedPdfTypes.includes(file.type)) {
+                        content = result.split(',')[1];
+                        if (file.type.startsWith('image/')) {
+                            preview = result;
+                        }
+                    } else { // Text files
+                        content = result;
+                    }
+                    
+                    dispatch({ 
+                        type: 'SET_ATTACHED_FILES', 
+                        payload: attachedFiles.map(f => 
+                            f.name === file.name && f.isLoading 
+                            ? { ...f, content, preview, isLoading: false } 
+                            : f
+                        )
+                    });
+                };
+                
+                reader.onerror = () => {
+                     showToast(`Failed to read file: ${file.name}`, 'error');
+                     dispatch({ type: 'SET_ATTACHED_FILES', payload: attachedFiles.filter(f => !(f.name === file.name && f.isLoading)) });
                 };
 
                 if (supportedImageTypes.includes(file.type) || supportedPdfTypes.includes(file.type)) {
-                    reader.onload = (e) => {
-                        const dataUrl = e.target?.result as string;
-                        updateFile(dataUrl.split(',')[1], file.type.startsWith('image/') ? dataUrl : undefined);
-                    };
                     reader.readAsDataURL(file);
                 } else if (supportedTextTypes.includes(file.type)) {
-                    reader.onload = (e) => {
-                         const textContent = e.target?.result as string;
-                         updateFile(textContent);
-                    };
                     reader.readAsText(file);
                 } else {
                     showToast(`Unsupported file type: ${file.name}`, 'error');
-                    dispatch({ type: 'SET_ATTACHED_FILES', payload: state.attachedFiles.filter(f => !(f.name === file.name && f.isLoading)) });
+                    dispatch({ type: 'SET_ATTACHED_FILES', payload: attachedFiles.filter(f => !(f.name === file.name && f.isLoading)) });
                 }
             });
         }
@@ -308,7 +305,6 @@ export default function App() {
         }
         if (isListening) {
             recognitionRef.current.stop();
-            dispatch({ type: 'SET_LISTENING', payload: false });
         } else {
             recognitionRef.current.start();
             dispatch({ type: 'SET_LISTENING', payload: true });
@@ -322,20 +318,25 @@ export default function App() {
   const handleSend = useCallback(async () => {
     if ((!input.trim() && attachedFiles.filter(f => !f.isLoading).length === 0) || isProcessing) return;
 
-    // Re-check for API key right before sending.
     const key = localStorage.getItem('gemini-api-key') || process.env.API_KEY;
     if (!key) {
         dispatch({ type: 'SET_API_KEY_ERROR', payload: true });
+        showToast('API Key is missing. Please set it in the settings.', 'error');
         return;
     }
-
-
-    const userMessage: Message = { id: `user-${crypto.randomUUID()}`, role: 'user', content: input.trim(), type: 'chat' };
+    
+    const currentFiles = attachedFiles.filter(f => !f.isLoading);
+    const userMessage: Message = { 
+        id: `user-${crypto.randomUUID()}`, 
+        role: 'user', 
+        content: input.trim(), 
+        type: 'chat',
+        attachedFiles: currentFiles,
+    };
     dispatch({ type: 'ADD_MESSAGE', payload: userMessage });
     if (view === 'landing') dispatch({ type: 'START_CHAT' });
     
     const currentInput = input;
-    const currentFiles = attachedFiles;
     dispatch({ type: 'SET_INPUT', payload: '' });
     dispatch({ type: 'SET_ATTACHED_FILES', payload: [] });
     dispatch({ type: 'SET_PROCESSING', payload: true });
@@ -380,7 +381,7 @@ export default function App() {
     } finally {
       dispatch({ type: 'SET_PROCESSING', payload: false });
     }
-  }, [input, isProcessing, conversationPhase, view, attachedFiles, history, generationMode]);
+  }, [input, isProcessing, conversationPhase, view, attachedFiles, history, generationMode, showToast]);
 
   const handleKeyPress = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === 'Enter' && !e.shiftKey) {
@@ -399,24 +400,20 @@ export default function App() {
   };
 
   const handleReset = useCallback(() => {
-      if (window.confirm("Are you sure you want to start a new chat? Your current conversation will be lost.")) {
-          dispatch({ type: 'RESET_STATE' });
-      }
-  }, []);
+    if (messages.length > 0) {
+        dispatch({ type: 'SET_CONFIRM_MODAL_OPEN', payload: true });
+    }
+  }, [messages.length]);
 
-  if (!user) {
-    return (
-        <>
-            <Toast toast={toast} onDismiss={() => dispatch({ type: 'SET_TOAST', payload: null })} />
-            <LoginPage onLogin={handleLogin} />
-        </>
-    );
-  }
+  const confirmReset = useCallback(() => {
+      dispatch({ type: 'RESET_STATE' });
+      dispatch({ type: 'SET_CONFIRM_MODAL_OPEN', payload: false });
+  }, []);
 
   return (
     <>
-      <div className="flex flex-col min-h-screen max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 box-border">
-        <Header user={user} onLogout={handleLogout} onOpenSettings={() => dispatch({ type: 'SET_API_KEY_MODAL_OPEN', payload: true })} onNewChat={handleReset} />
+      <div className="flex flex-col h-screen max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 box-border">
+        <Header onOpenSettings={() => dispatch({ type: 'SET_API_KEY_MODAL_OPEN', payload: true })} onNewChat={handleReset} />
         
         <Toast toast={toast} onDismiss={() => dispatch({ type: 'SET_TOAST', payload: null })} />
 
@@ -433,6 +430,7 @@ export default function App() {
                 <button
                     onClick={() => dispatch({ type: 'SET_API_KEY_MODAL_OPEN', payload: true })}
                     className="ml-4 px-3 py-1.5 bg-red-500 text-white rounded-md text-sm font-semibold hover:bg-red-600 transition-colors flex items-center gap-2 whitespace-nowrap"
+                    aria-label="Set API Key"
                 >
                     <Settings className="w-4 h-4" />
                     Set API Key
@@ -442,7 +440,7 @@ export default function App() {
         )}
 
         {view === 'landing' && (
-          <main className="flex-1 flex flex-col items-center">
+          <main className="flex-1 flex flex-col items-center overflow-y-auto">
               <div className="flex flex-col items-center text-center mt-20 sm:mt-24 gap-4">
                   <div 
                     className="brand-icon w-24 h-24 mb-4 rounded-full"
@@ -478,8 +476,8 @@ export default function App() {
         )}
 
         {view === 'chat' && (
-          <div className="flex-1 flex flex-col w-full max-w-3xl mx-auto pb-24 relative">
-               <div className="flex-1 overflow-y-auto space-y-6 pr-2">
+          <div className="flex-1 flex flex-col w-full max-w-3xl mx-auto overflow-hidden">
+               <div className="flex-1 overflow-y-auto space-y-6 p-2 pb-4">
                   {messages.map((msg) => (
                       <MessageBubble
                           key={msg.id}
@@ -493,29 +491,25 @@ export default function App() {
                   ))}
                   <div ref={messagesEndRef} />
               </div>
-              <div className="fixed bottom-0 left-0 right-0 bg-gradient-to-t from-[hsl(240,20%,99%)] via-[hsl(240,20%,99%)] to-transparent pointer-events-none h-48">
-                  <div className="absolute bottom-6 w-full px-4 flex justify-center">
-                     <div className="w-full max-w-3xl">
-                         <GenerationModeToggle mode={generationMode} setMode={handleModeChange} />
-                         <InputArea 
-                              input={input} 
-                              setInput={(val) => dispatch({ type: 'SET_INPUT', payload: val })} 
-                              handleSend={handleSend} 
-                              handleKeyPress={handleKeyPress} 
-                              isProcessing={isProcessing} 
-                              apiKeyError={apiKeyError}
-                              attachedFiles={attachedFiles}
-                              onFileChange={handleFileChange}
-                              onRemoveFile={removeFile}
-                              onToggleListening={handleToggleListening}
-                              isListening={isListening}
-                              isSpeechRecognitionSupported={!!recognitionRef.current}
-                              onAnnotate={handleAnnotate}
-                              textareaRef={textareaRef}
-                         />
-                        <PromptSuggestions onSuggestionClick={handleSuggestionClick} />
-                     </div>
-                  </div>
+              <div className="w-full max-w-3xl mx-auto py-4">
+                  <GenerationModeToggle mode={generationMode} setMode={handleModeChange} />
+                  <InputArea 
+                        input={input} 
+                        setInput={(val) => dispatch({ type: 'SET_INPUT', payload: val })} 
+                        handleSend={handleSend} 
+                        handleKeyPress={handleKeyPress} 
+                        isProcessing={isProcessing} 
+                        apiKeyError={apiKeyError}
+                        attachedFiles={attachedFiles}
+                        onFileChange={handleFileChange}
+                        onRemoveFile={removeFile}
+                        onToggleListening={handleToggleListening}
+                        isListening={isListening}
+                        isSpeechRecognitionSupported={!!recognitionRef.current}
+                        onAnnotate={handleAnnotate}
+                        textareaRef={textareaRef}
+                  />
+                  <PromptSuggestions onSuggestionClick={handleSuggestionClick} />
               </div>
           </div>
         )}
@@ -524,10 +518,18 @@ export default function App() {
         isOpen={isApiKeyModalOpen}
         onClose={() => dispatch({ type: 'SET_API_KEY_MODAL_OPEN', payload: false })}
         onSave={handleSaveApiKey}
+        showToast={showToast}
       />
       <Whiteboard 
         isOpen={isWhiteboardOpen}
         onClose={() => dispatch({ type: 'SET_WHITEBOARD_OPEN', payload: false })}
+      />
+      <ConfirmModal
+        isOpen={isConfirmModalOpen}
+        onClose={() => dispatch({ type: 'SET_CONFIRM_MODAL_OPEN', payload: false })}
+        onConfirm={confirmReset}
+        title="Start New Chat?"
+        description="Are you sure you want to start a new chat? Your current conversation will be permanently lost."
       />
     </>
   );

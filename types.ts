@@ -38,6 +38,7 @@ export interface BaseMessage {
 export interface ChatMessage extends BaseMessage {
   type: 'chat';
   content: string;
+  attachedFiles?: AttachedFile[];
 }
 
 export interface PromptMessage extends BaseMessage {
