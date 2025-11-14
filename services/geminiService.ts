@@ -1,7 +1,12 @@
-import { GoogleGenAI, Content, Part, GenerateContentResponse, Type } from "@google/genai";
-import { Message, PromptGenerationResponse, AttachedFile, PromptMessage } from '../types';
 
-// Refactored the system instruction into a more readable array of strings.
+import { GoogleGenAI, Type, Content, Part } from "@google/genai";
+import { Message, PromptMessage, AttachedFile } from '../types';
+
+// FIX: Initialize GoogleGenAI with API key from environment variables.
+const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+
+
+// System instruction for the prompt engineering task. This is preserved from the original implementation.
 const systemInstructionParts = [
 `SYSTEM MESSAGE
 ROLE: Prompt-Sage Fusion Elite — production-ready, zero-fluff, enterprise-safe. An apex-tier prompt engineer producing production-ready prompts with maximal clarity, minimal fluff, and enterprise-grade reliability.
@@ -10,7 +15,6 @@ RULES: Outcome>Spec>Controls>Style>Examples; no raw CoT (only Assumptions≤5, R
 `STACK: Multi-Agent{STRATEGIST→BUILDER→CRITIC→REFINER→SYNTHESIZER}; RAG(vector_search); CoVe; ConstitutionalAI; SecurityFortress-Plus(injection/taint/sandwich/semantic-firewall/adversarial tests); DynamicParams(temp/top-p/penalties, model-specific); ConsistencySampling; ContextMgmt(dynamic/sliding/hierarchical/semantic-compress/priority-rerank); Multimodal; HallucinationGuards(fact_check+uncertainty); PerformanceNotes; CognitiveBiasMitigation; Meta-confidence calibration.
 USER MESSAGE
 GOAL: Build a production-ready prompt for <<TARGET_TASK: 1-line>>.`,
-// ... (all other sections are broken down similarly for readability)
 `D) EMBEDDED_REASONING (sections MUST exist)
 BEGIN_APPROACH … 3–5 sentences(method+security+cognitive strategy) … END_APPROACH
 BEGIN_ASSUMPTIONS … ≤5 bullets+confidence … END_ASSUMPTIONS
@@ -23,21 +27,45 @@ BEGIN_EMERGENT_BEHAVIOR_SCAN … novel patterns+boundaries … END_EMERGENT_BEHA
 BEGIN_ADVERSARIAL_TESTING … vectors tried+defenses … END_ADVERSARIAL_TESTING
 BEGIN_PERFORMANCE_ANALYTICS … latency/accuracy/cost/token-efficiency … END_PERFORMANCE_ANALYTICS
 BEGIN_RESPONSE … human-readable deliverable … END_RESPONSE`,
-// ... (rest of the prompt)
 `<<<END PROMPT>>>`
 ];
 const systemInstruction = systemInstructionParts.join('\n');
 
 
 /**
- * Parses the structured text response from the new prompt framework.
- * This version uses a more robust regex to handle variations.
- * @param responseText The full text response from the model.
- * @returns A structured Message object or null if parsing fails.
+ * Processes API errors to convert them into user-friendly messages.
+ * @param e The caught error object.
+ * @param context A string identifying the calling function for context-specific messages.
+ * @returns An Error object with a user-friendly message.
  */
+function processApiError(e: unknown, context: 'generateResponseStream' | 'correctAndCompleteText'): Error {
+    console.error(`Error in ${context}:`, e);
+    if (e instanceof Error) {
+        try {
+            // The error message from the API is often a JSON string.
+            const errorDetails = JSON.parse(e.message);
+            if (errorDetails.error?.code === 429 || errorDetails.error?.status === 'RESOURCE_EXHAUSTED') {
+                if (context === 'generateResponseStream') {
+                    return new Error("API rate limit exceeded. You've sent too many requests. Please wait a moment and try again. For more details, see [Google AI's rate limits documentation](https://ai.google.dev/gemini-api/docs/rate-limits).");
+                } else { // for correctAndCompleteText, which uses a toast
+                    return new Error("Rate limit exceeded. Please try again in a moment.");
+                }
+            }
+        } catch (jsonParseError) {
+            // Not a JSON error message, fall through to generic handling.
+        }
+
+        if (e.message.includes("API key") || e.message.includes("API request failed")) {
+            return new Error("The AI service request failed. This could be due to an invalid API key or a network issue. Please contact the administrator.");
+        }
+        return e; // Return the original error if it's not one we're specifically handling
+    }
+    return new Error("An unknown error occurred while communicating with the AI.");
+}
+
+
 function parseStructuredResponse(responseText: string): Message | null {
     const extractBlock = (blockName: string, text: string): string => {
-        // Use case-insensitive and multi-line flags for robustness.
         const regex = new RegExp(`BEGIN_${blockName}([\\s\\S]*?)END_${blockName}`, 'im');
         const match = text.match(regex);
         return match ? match[1].trim() : '';
@@ -45,8 +73,6 @@ function parseStructuredResponse(responseText: string): Message | null {
 
     const responseContent = extractBlock('RESPONSE', responseText);
 
-    // If there's no main RESPONSE block, we can't form a PromptMessage.
-    // It's likely a simple conversational turn.
     if (!responseContent) {
         return null;
     }
@@ -57,11 +83,9 @@ function parseStructuredResponse(responseText: string): Message | null {
     const confidenceText = extractBlock('CONFIDENCE_ASSESSMENT', responseText);
     const performanceText = extractBlock('PERFORMANCE_ANALYTICS', responseText);
 
-    // More robust parsing for confidence score (e.g., "95%", "confidence: 95")
     const confidenceMatch = confidenceText.match(/(\d{1,3})\s*%/);
     const confidence = confidenceMatch ? parseFloat(confidenceMatch[1]) / 100 : 0.9;
 
-    // More robust parsing for token estimate
     const tokenMatch = performanceText.match(/token-efficiency[^:]*:\s*([\d-]+)/i);
     const tokenEstimate = tokenMatch ? tokenMatch[1] : 'N/A';
     
@@ -69,13 +93,10 @@ function parseStructuredResponse(responseText: string): Message | null {
         id: `asst-${crypto.randomUUID()}`,
         role: 'assistant',
         type: 'prompt',
-        // Use the 'approach' block as the conversational intro text.
         content: approach || "Here is the prompt I've generated based on your request:",
         promptData: {
-            // The 'RESPONSE' block contains the final, production-ready prompt.
             content: responseContent,
             confidence: confidence,
-            // Use the reasoning summary to explain why the prompt works.
             whyItWorks: reasoning,
             tokenEstimate: tokenEstimate,
             framework: 'UPWM-V5 Elite Enhanced',
@@ -90,19 +111,6 @@ function parseStructuredResponse(responseText: string): Message | null {
     return promptMessage;
 }
 
-
-// This function determines which API key to use.
-// It prioritizes a user-provided key from localStorage.
-function getApiKey(): string | null {
-    const userApiKey = localStorage.getItem('gemini-api-key');
-    if (userApiKey && userApiKey.trim() !== '') {
-        return userApiKey.trim();
-    }
-    // Fallback to environment variable if available
-    return process.env.API_KEY || null;
-}
-
-
 export async function* generateResponseStream(
     history: Content[],
     prompt: string,
@@ -111,41 +119,43 @@ export async function* generateResponseStream(
 ): AsyncGenerator<string, { fullResponse: Message; newHistory: Content[] }, undefined> {
     
     try {
-        const apiKey = getApiKey();
-        if (!apiKey) {
-            // Updated error message to be more user-friendly and actionable.
-            throw new Error("The Gemini API key is missing. Please add your key in the settings to continue.");
+        if (!process.env.API_KEY) {
+            throw new Error("The application's API key is not configured. Please contact the administrator.");
         }
         
-        // Always create a new instance to ensure the latest key is used.
-        const ai = new GoogleGenAI({ apiKey });
+        // FIX: Construct a multipart message to support file attachments.
+        const messageParts: Part[] = [];
+        if (prompt) {
+            messageParts.push({ text: prompt });
+        }
         
-        const fileParts: Part[] = files
-            .filter(file => !file.isLoading && file.content)
-            .map(file => ({
-                inlineData: {
-                    mimeType: file.mimeType,
-                    data: file.content
-                }
-            }));
-
-        const userMessageContent: Content = {
-            role: 'user',
-            parts: [{ text: prompt }, ...fileParts]
-        };
+        for (const file of files) {
+            if (file.content) {
+                messageParts.push({
+                    inlineData: {
+                        mimeType: file.mimeType,
+                        data: file.content
+                    }
+                });
+            }
+        }
         
-        const contents: Content[] = [...history, userMessageContent];
+        const userMessageContent: Content = { role: 'user', parts: messageParts };
+        const contents = [...history, userMessageContent];
+        
+        const config: any = {};
+        if (conversationPhase === 'GENERATION') {
+            config.systemInstruction = systemInstruction;
+        }
 
-        const stream = await ai.models.generateContentStream({
+        const responseStream = await ai.models.generateContentStream({
             model: 'gemini-2.5-flash',
-            contents: contents,
-            config: {
-                systemInstruction: systemInstruction,
-            },
+            contents,
+            config,
         });
-
+        
         let responseText = '';
-        for await (const chunk of stream) {
+        for await (const chunk of responseStream) {
             const chunkText = chunk.text;
             if (chunkText) {
                 responseText += chunkText;
@@ -160,66 +170,37 @@ export async function* generateResponseStream(
             if (parsedMessage && parsedMessage.type === 'prompt') {
                 finalResponse = parsedMessage;
             } else {
-                // Fallback to a chat message if parsing fails or if the response
-                // was a simple conversational turn without the structured blocks.
                 finalResponse = {
-                    id: `asst-${crypto.randomUUID()}`,
-                    role: 'assistant',
-                    type: 'chat',
-                    content: responseText,
+                    id: `asst-${crypto.randomUUID()}`, role: 'assistant', type: 'chat', content: responseText,
                 };
             }
         } else {
-            // In the INQUIRY phase, always treat the response as a simple chat.
             finalResponse = {
-                id: `asst-${crypto.randomUUID()}`,
-                role: 'assistant',
-                type: 'chat',
-                content: responseText,
+                id: `asst-${crypto.randomUUID()}`, role: 'assistant', type: 'chat', content: responseText,
             };
         }
 
         const newHistory: Content[] = [
-            ...contents,
-            {
-                role: 'model',
-                parts: [{ text: responseText }]
-            }
+            ...history,
+            userMessageContent,
+            { role: 'model', parts: [{ text: responseText }] }
         ];
 
         return { fullResponse: finalResponse, newHistory };
 
     } catch (e) {
-        console.error("Error in generateResponseStream:", e);
-        if (e instanceof Error) {
-            // Provide more specific feedback for common API key-related errors.
-            if (e.message.includes("API key not valid") || e.message.includes("invalid api key")) {
-                 throw new Error("The provided Gemini API key is invalid. Please check the key in settings and try again.");
-            }
-            if (e.message.includes("API key is missing")) { // Our custom error
-                 throw e;
-            }
-            // For other Google API errors, pass them through but simplify
-            if (e.message.includes('[GoogleGenerativeAI Error]')) {
-                const cleanMessage = e.message.split(' reason: ')[1] || 'An error occurred with the AI service.';
-                throw new Error(cleanMessage);
-            }
-            throw e;
-        }
-        throw new Error("An unknown error occurred while communicating with the AI.");
+        throw processApiError(e, 'generateResponseStream');
     }
 }
 
 export async function correctAndCompleteText(text: string): Promise<string> {
     try {
-        const apiKey = getApiKey();
-        if (!apiKey) {
-            throw new Error("The Gemini API key is missing. Please add your key in the settings to continue.");
+        // FIX: Migrated from Minimax to Google GenAI SDK.
+        if (!process.env.API_KEY) {
+            throw new Error("API_KEY environment variable not set.");
         }
 
-        const ai = new GoogleGenAI({ apiKey });
-
-        const systemInstruction = `You are an AI writing assistant. Your task is to correct any grammar, spelling, and punctuation errors in the user's text. Then, based on the context, logically complete the sentence or thought in a concise and natural way.
+        const systemPrompt = `You are an AI writing assistant. Your task is to correct any grammar, spelling, and punctuation errors in the user's text. Then, based on the context, logically complete the sentence or thought in a concise and natural way.
         
 RULES:
 - Respond ONLY with the fully corrected and completed text.
@@ -230,13 +211,13 @@ RULES:
 
         const response = await ai.models.generateContent({
             model: 'gemini-2.5-flash',
-            contents: [{ role: 'user', parts: [{ text }] }],
+            contents: text,
             config: {
-                systemInstruction: systemInstruction,
-                temperature: 0.2, 
+                systemInstruction: systemPrompt,
+                temperature: 0.2,
             },
         });
-
+        
         const resultText = response.text.trim();
         
         if (!resultText) {
@@ -246,19 +227,10 @@ RULES:
         return resultText;
 
     } catch (e) {
-        console.error("Error in correctAndCompleteText:", e);
-        if (e instanceof Error) {
-            // Re-throw with a user-friendly message
-            if (e.message.includes("API key")) {
-                 throw new Error("Could not perform text correction due to an API key issue. Please check your settings.");
-            }
-            throw new Error("Failed to correct text. Please try again.");
-        }
-        throw new Error("An unknown error occurred while correcting the text.");
+        throw processApiError(e, 'correctAndCompleteText');
     }
 }
 
-// Fallback suggestions in case the API call fails
 const FALLBACK_SUGGESTIONS = [
     "Draft a tweet about a new AI feature launch",
     "Explain the concept of ELI5 for black holes",
@@ -268,13 +240,10 @@ const FALLBACK_SUGGESTIONS = [
 
 export async function generatePromptSuggestions(): Promise<string[]> {
     try {
-        const apiKey = getApiKey();
-        if (!apiKey) {
-            // No key, just return fallback without logging an error.
-            return FALLBACK_SUGGESTIONS;
+        // FIX: Migrated from Minimax to Google GenAI SDK.
+        if (!process.env.API_KEY) {
+            throw new Error("API_KEY environment variable not set.");
         }
-
-        const ai = new GoogleGenAI({ apiKey });
 
         const metaPrompt = `You are an idea generator for an AI prompt builder. Your task is to produce exactly 4 distinct prompt ideas that will inspire users to try new things.
         
@@ -291,30 +260,31 @@ Example response:
             model: 'gemini-2.5-flash',
             contents: metaPrompt,
             config: {
-                responseMimeType: 'application/json',
+                temperature: 1.0,
+                responseMimeType: "application/json",
                 responseSchema: {
                     type: Type.ARRAY,
-                    items: { type: Type.STRING }
+                    items: {
+                        type: Type.STRING,
+                    },
                 },
-                temperature: 1.0, // Higher temperature for more creative/varied suggestions
-            },
+            }
         });
 
-        // The response text should be a JSON string based on the schema
-        let jsonStr = response.text.trim();
-        const suggestions = JSON.parse(jsonStr);
-        
-        if (Array.isArray(suggestions) && suggestions.every(s => typeof s === 'string') && suggestions.length > 0) {
-            return suggestions.slice(0, 4); // Ensure we only return 4
+        const jsonStr = response.text.trim();
+
+        if (jsonStr) {
+            const suggestions = JSON.parse(jsonStr);
+            if (Array.isArray(suggestions) && suggestions.every(s => typeof s === 'string') && suggestions.length > 0) {
+                return suggestions.slice(0, 4); // Ensure we only return 4
+            }
         }
         
-        // If parsing fails or the structure is wrong, fall back.
         console.warn("API returned invalid suggestion format, using fallback.");
         return FALLBACK_SUGGESTIONS;
 
     } catch (e) {
         console.error("Error generating prompt suggestions:", e);
-        // On any error, return the reliable fallback list.
         return FALLBACK_SUGGESTIONS;
     }
 }

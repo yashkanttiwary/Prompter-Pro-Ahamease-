@@ -1,10 +1,11 @@
+
 import React, { useRef, useState, useEffect, useCallback, memo, CSSProperties } from 'react';
 import { 
     Copy, Check, CheckCircle, XCircle, 
-    Paperclip, Mic, X, FileText, Brush, Eraser, Undo2, Redo2, Trash2, Settings, Plus,
-    Lightbulb, Bot, RefreshCw, Loader2, AlertTriangle, ArrowUp
+    Mic, X, Brush, Eraser, Undo2, Redo2, Trash2, Plus,
+    Lightbulb, Bot, RefreshCw, Loader2, AlertTriangle, ArrowUp, Paperclip
 } from 'lucide-react';
-import { Message, AttachedFile, User } from './types';
+import { Message, User, AttachedFile } from './types';
 
 
 // --- Language Detection Utility ---
@@ -115,7 +116,7 @@ const TypingIndicatorOrb = ({ onClick, isProcessing }: { onClick: () => void; is
 // --- Reusable Components ---
 export const SafeMarkdown: React.FC<{ text: string, className?: string, isStreaming?: boolean, isUser?: boolean }> = React.memo(({ text, className = '', isStreaming = false, isUser = false }) => {
     const processInlineFormatting = (text: string) => {
-        const parts = text.split(/(\*\*.*?\*\*|\*.*?\*|`.*?`)/g);
+        const parts = text.split(/(\*\*.*?\*\*|\*.*?\*|`.*?`|\[.*?\]\(.*?\))/g);
         return parts.map((part, j) => {
             if (part.startsWith('**') && part.endsWith('**')) {
                 return <strong key={j} className="font-semibold text-[--neutral-900]">{part.slice(2, -2)}</strong>;
@@ -125,6 +126,11 @@ export const SafeMarkdown: React.FC<{ text: string, className?: string, isStream
             }
             if (part.startsWith('`') && part.endsWith('`')) {
                 return <code key={j} className={`text-sm rounded px-1 py-0.5 font-mono ${isUser ? 'bg-orange-100/70 text-red-700' : 'bg-gray-100 text-red-600'}`}>{part.slice(1, -1)}</code>;
+            }
+            const linkMatch = part.match(/^\[(.*?)\]\((.*?)\)$/);
+            if (linkMatch) {
+                const [, text, url] = linkMatch;
+                return <a href={url} key={j} target="_blank" rel="noopener noreferrer" className="text-[--primary] hover:underline">{text}</a>;
             }
             return part;
         });
@@ -163,29 +169,10 @@ export const SafeMarkdown: React.FC<{ text: string, className?: string, isStream
     return <div className={className}>{elements}{streamingCursor}</div>;
 });
 
-const SmallFilePreview = ({ files, isUser }: { files: AttachedFile[], isUser: boolean }) => {
-    if (!files || files.length === 0) return null;
-
-    return (
-        <div className="pt-2 flex flex-wrap gap-2">
-            {files.map((file, index) => (
-                <div key={`${file.name}-${index}`} className={`border rounded-lg px-3 py-2 flex items-center gap-2 text-sm h-fit shadow-sm max-w-xs ${isUser ? 'bg-white/60 border-orange-200/60 text-[--neutral-800]' : 'bg-white border-[--neutral-100] text-[--neutral-800]'}`}>
-                    {file.preview ? (
-                        <img src={file.preview} alt={file.name} className="w-6 h-6 object-cover rounded" />
-                    ) : (
-                        <FileText className={`w-5 h-5 ${isUser ? 'text-gray-600' : 'text-gray-500'} flex-shrink-0`} />
-                    )}
-                    <span className="truncate" title={file.name}>{file.name}</span>
-                </div>
-            ))}
-        </div>
-    );
-};
 
 export const MessageBubble: React.FC<{ msg: Message; onCopy: (text: string, id: string) => void; copiedId: string | null; isStreaming: boolean }> = ({ msg, onCopy, copiedId, isStreaming }) => {
   const isUser = msg.role === 'user';
   const hasContent = msg.content && msg.content.trim() !== '';
-  const hasAttachments = msg.type === 'chat' && msg.attachedFiles && msg.attachedFiles.length > 0;
   
   const isShowingGeneratingIndicator = isStreaming && !hasContent;
   const language = msg.type === 'prompt' ? detectLanguage(msg.promptData.content) : 'text';
@@ -202,7 +189,6 @@ export const MessageBubble: React.FC<{ msg: Message; onCopy: (text: string, id: 
                </div>
            )}
            {hasContent && <SafeMarkdown text={msg.content} isStreaming={isStreaming} isUser={isUser} />}
-           {hasAttachments && <SmallFilePreview files={msg.attachedFiles!} isUser={isUser} />}
         </div>
         {msg.type === 'prompt' && (
           <div className="p-5 pt-0 space-y-4">
@@ -241,8 +227,7 @@ export const MessageBubble: React.FC<{ msg: Message; onCopy: (text: string, id: 
 };
 
 
-export const Header = memo(({ onOpenSettings, onNewChat, view, mode, setMode, isProcessing }: { 
-    onOpenSettings: () => void; 
+export const Header = memo(({ onNewChat, view, mode, setMode, isProcessing }: { 
     onNewChat: () => void; 
     view: 'landing' | 'chat';
     mode: 'PROMPT' | 'BUILD';
@@ -268,17 +253,10 @@ export const Header = memo(({ onOpenSettings, onNewChat, view, mode, setMode, is
                      <button 
                         onClick={onNewChat}
                         aria-label="Start new chat"
-                        className="hidden sm:inline-flex items-center gap-2 px-4 py-1.5 bg-white/70 backdrop-blur-xl border border-gray-200/50 rounded-full text-sm font-medium text-gray-800 shadow-sm hover:text-gray-900 hover:bg-white/90 transition-colors"
+                        className="inline-flex items-center gap-2 px-4 py-1.5 bg-white/70 backdrop-blur-xl border border-gray-200/50 rounded-full text-sm font-medium text-gray-800 shadow-sm hover:text-gray-900 hover:bg-white/90 transition-colors"
                     >
                         <Plus className="w-4 h-4" />
                         New Chat
-                    </button>
-                     <button
-                        onClick={onOpenSettings}
-                        aria-label="Open settings"
-                        className="flex items-center justify-center w-9 h-9 bg-white/70 backdrop-blur-xl border border-gray-200/50 rounded-full text-gray-800 shadow-sm hover:text-gray-900 hover:bg-white/90 transition-colors"
-                    >
-                        <Settings className="w-5 h-5" />
                     </button>
                 </div>
             </div>
@@ -286,86 +264,31 @@ export const Header = memo(({ onOpenSettings, onNewChat, view, mode, setMode, is
     </header>
 ));
 
-const FilePreview = ({ files, onRemoveFile }: { files: AttachedFile[], onRemoveFile: (index: number) => void }) => {
-    if (files.length === 0) return null;
-
-    const getFileIcon = (mimeType: string) => {
-        if (mimeType === 'application/pdf') return <FileText className="w-5 h-5 text-red-600 flex-shrink-0" />;
-        return <Paperclip className="w-5 h-5 text-[--neutral-700] flex-shrink-0" />;
-    };
-
-    return (
-        <div className="px-4 pt-3 flex flex-wrap gap-3">
-            {files.map((file, index) => {
-                if (file.isLoading) {
-                    return (
-                        <div key={`${file.name}-${index}`} className="relative w-20 h-20 rounded-lg flex items-center justify-center border bg-[--neutral-50] shadow-sm">
-                            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[--primary]"></div>
-                        </div>
-                    );
-                }
-                if (file.preview) { // Image thumbnail
-                    return (
-                        <div key={`${file.name}-${index}`} className="relative w-20 h-20 rounded-lg overflow-hidden group border border-[--neutral-100] shadow-sm">
-                            <img src={file.preview} alt={file.name} className="w-full h-full object-cover" />
-                            <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-40 transition-colors flex items-center justify-center">
-                                <button
-                                    onClick={() => onRemoveFile(index)}
-                                    className="absolute top-1 right-1 bg-black bg-opacity-50 text-white rounded-full p-0.5 opacity-0 group-hover:opacity-100 transition-opacity focus:opacity-100"
-                                    aria-label={`Remove ${file.name}`}
-                                >
-                                    <X className="w-4 h-4" />
-                                </button>
-                            </div>
-                        </div>
-                    );
-                }
-                // File chip for non-image files
-                return (
-                    <div key={`${file.name}-${index}`} className="bg-white border border-[--neutral-100] rounded-lg px-3 py-2 flex items-center gap-2 text-sm text-[--neutral-800] h-fit shadow-sm max-w-xs">
-                        {getFileIcon(file.mimeType)}
-                        <span className="truncate" title={file.name}>{file.name}</span>
-                        <button onClick={() => onRemoveFile(index)} aria-label={`Remove ${file.name}`} className="text-[--neutral-500] hover:text-[--neutral-900] flex-shrink-0 ml-auto">
-                            <X className="w-4 h-4" />
-                        </button>
-                    </div>
-                );
-            })}
-        </div>
-    );
-};
-
 export const InputArea = ({ input, setInput, handleSend, handleKeyPress, isProcessing, isOrbProcessing, onOrbClick, apiKeyError, attachedFiles, onFileChange, onRemoveFile, onToggleListening, isListening, isSpeechRecognitionSupported, textareaRef, onOpenWhiteboard }: { input: string; setInput: (value: string) => void; handleSend: () => void; handleKeyPress: (e: React.KeyboardEvent<HTMLTextAreaElement>) => void; isProcessing: boolean; isOrbProcessing: boolean; onOrbClick: () => void; apiKeyError: boolean; attachedFiles: AttachedFile[]; onFileChange: (files: FileList | null) => void; onRemoveFile: (index: number) => void; onToggleListening: () => void; isListening: boolean; isSpeechRecognitionSupported: boolean; textareaRef: React.RefObject<HTMLTextAreaElement>; onOpenWhiteboard: () => void; }) => {
-    const [isDraggingOver, setIsDraggingOver] = useState(false);
-    const fileInputRef = useRef<HTMLInputElement>(null);
     const isTyping = input.trim().length > 0;
-
-    const handleDragOver = (e: React.DragEvent) => {
-        e.preventDefault();
-        e.stopPropagation();
-        setIsDraggingOver(true);
-    };
-    const handleDragLeave = (e: React.DragEvent) => {
-        e.preventDefault();
-        e.stopPropagation();
-        setIsDraggingOver(false);
-    };
-    const handleDrop = (e: React.DragEvent) => {
-        e.preventDefault();
-        e.stopPropagation();
-        setIsDraggingOver(false);
-        onFileChange(e.dataTransfer.files);
-    };
+    const hasFiles = attachedFiles.length > 0;
 
     return (
-        <div className="w-full max-w-3xl mx-auto" onDragOver={handleDragOver} onDragLeave={handleDragLeave} onDrop={handleDrop}>
-            <div className={`relative bg-white/60 backdrop-blur-xl border rounded-2xl shadow-[var(--shadow-lg)] transition-all duration-250 focus-within-ring flex flex-col ${isDraggingOver ? 'border-[--primary] shadow-2xl' : 'border-white/30'}`}>
-                {isDraggingOver && (
-                    <div className="absolute inset-0 bg-[--primary]/10 rounded-2xl flex items-center justify-center pointer-events-none z-10">
-                        <p className="font-semibold text-[--primary]">Drop files to attach</p>
+        <div className="w-full max-w-3xl mx-auto">
+            <div className="relative bg-white/60 backdrop-blur-xl border rounded-2xl shadow-[var(--shadow-lg)] transition-all duration-250 focus-within-ring flex flex-col border-white/30">
+                {hasFiles && (
+                    <div className="p-3 border-b border-slate-200/60">
+                        <div className="flex flex-wrap gap-2">
+                            {attachedFiles.map((file, index) => (
+                                <div key={index} className="flex items-center gap-1.5 bg-slate-100 rounded-full pl-3 pr-1.5 py-1 text-xs text-slate-700 font-medium animate-slide-in-bottom" style={{ animationDuration: '0.3s' }}>
+                                    {file.isLoading ? (
+                                        <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                                    ) : (
+                                        <span>{file.name}</span>
+                                    )}
+                                    <button onClick={() => onRemoveFile(index)} className="rounded-full hover:bg-slate-200 p-0.5" aria-label={`Remove ${file.name}`}>
+                                        <X className="w-3.5 h-3.5" />
+                                    </button>
+                                </div>
+                            ))}
+                        </div>
                     </div>
                 )}
-                <FilePreview files={attachedFiles} onRemoveFile={onRemoveFile} />
                 <div className="flex-1 p-3">
                     <textarea
                         ref={textareaRef}
@@ -381,15 +304,14 @@ export const InputArea = ({ input, setInput, handleSend, handleKeyPress, isProce
                 </div>
                 <div className="flex items-center justify-between gap-2 p-2.5 sm:p-3 pt-0">
                     <div className="flex items-center gap-2">
-                        <button onClick={() => fileInputRef.current?.click()} className="cursor-pointer w-10 h-10 flex items-center justify-center rounded-full hover:bg-black/5 text-slate-600 transition-colors" aria-label="Attach file">
-                            <Plus className="w-5 h-5" />
-                        </button>
-                        <input id="file-upload" type="file" multiple className="hidden" ref={fileInputRef} onChange={(e) => onFileChange(e.target.files)} accept="image/png, image/jpeg, image/webp, text/plain, application/pdf" />
-                        
+                         <label htmlFor="file-upload" className="cursor-pointer w-10 h-10 flex items-center justify-center rounded-full hover:bg-black/5 text-slate-600 transition-colors" aria-label="Attach files">
+                            <Paperclip className="w-5 h-5" />
+                        </label>
+                        <input id="file-upload" type="file" multiple className="hidden" onChange={(e) => onFileChange(e.target.files)} disabled={isProcessing} />
+
                         <button onClick={onOpenWhiteboard} className="cursor-pointer w-10 h-10 flex items-center justify-center rounded-full hover:bg-black/5 text-slate-600 transition-colors" aria-label="Open whiteboard">
                             <Brush className="w-5 h-5" />
                         </button>
-
                         <div className={`flex items-center gap-2 overflow-hidden transition-all duration-300 ${isTyping ? 'max-w-[200px] opacity-100' : 'max-w-0 opacity-0'}`}>
                             <TypingIndicatorOrb onClick={onOrbClick} isProcessing={isOrbProcessing} />
                             <span className="text-xs font-medium text-slate-500 whitespace-nowrap non-selectable">Fix & Complete</span>
@@ -407,7 +329,7 @@ export const InputArea = ({ input, setInput, handleSend, handleKeyPress, isProce
                         </button>
                         <button
                             onClick={handleSend}
-                            disabled={(!input.trim() && attachedFiles.filter(f => !f.isLoading).length === 0) || isProcessing || apiKeyError}
+                            disabled={(!isTyping && !hasFiles) || isProcessing || apiKeyError}
                             className="w-10 h-10 flex items-center justify-center bg-[--neutral-800] rounded-full text-white transition-all duration-200 transform hover:bg-[--neutral-900] hover:scale-105 disabled:bg-slate-300 disabled:text-slate-500 disabled:cursor-not-allowed disabled:transform-none disabled:opacity-70"
                             aria-label="Send message"
                         >
@@ -532,7 +454,7 @@ export const Toast = ({ toast, onDismiss }: { toast: { message: string, type: 's
     );
 };
 
-export const ApiKeyModal = ({ isOpen, onClose, onSave, showToast }: { isOpen: boolean; onClose: () => void; onSave: (key: string) => void; showToast: (msg: string, type: 'success' | 'error') => void; }) => {
+export const ApiKeyModal = ({ isOpen, onClose, onSave, showToast }: { isOpen: boolean; onClose: () => void; onSave: (key: string) => void; showToast: (message: string, type: 'success' | 'error') => void; }) => {
     const [apiKey, setApiKey] = useState('');
 
     useEffect(() => {
@@ -544,65 +466,37 @@ export const ApiKeyModal = ({ isOpen, onClose, onSave, showToast }: { isOpen: bo
     if (!isOpen) return null;
 
     const handleSave = () => {
-        onSave(apiKey);
+        if (!apiKey.trim()) {
+            showToast('API Key cannot be empty.', 'error');
+            return;
+        }
+        onSave(apiKey.trim());
         onClose();
     };
-    
-    const handleClear = () => {
-        setApiKey('');
-        localStorage.removeItem('gemini-api-key');
-        showToast('API Key cleared.', 'success');
-    }
 
     return (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={onClose} role="dialog" aria-modal="true">
-            <div 
-                className="bg-white/70 backdrop-blur-2xl rounded-2xl shadow-2xl w-full max-w-md p-6 border border-white/40 animate-slide-in-bottom" 
-                onClick={e => e.stopPropagation()}
-                style={{ animationDuration: '0.3s' }}
-            >
-                <div className="flex justify-between items-center mb-6">
-                    <h2 className="text-2xl font-bold text-slate-900">API Key Settings</h2>
-                    <button onClick={onClose} className="text-slate-400 hover:text-slate-600 rounded-full p-1 hover:bg-black/5 transition-colors" aria-label="Close settings">
-                        <X className="w-6 h-6" />
-                    </button>
-                </div>
-
-                <div className="bg-amber-400/10 backdrop-blur-sm rounded-lg p-3 text-amber-900 flex items-start gap-3 text-xs mb-6 border border-amber-400/20 shadow-inner">
-                    <AlertTriangle className="w-5 h-5 text-amber-500 mt-0.5 flex-shrink-0"/>
-                    <div>
-                        <strong className="font-semibold">Security Notice:</strong> Your key is saved locally in your browser. Do not use this app on shared or public computers.
-                    </div>
-                </div>
-
-                <div className="mb-6">
-                    <label htmlFor="apiKeyInput" className="block text-sm font-medium text-slate-700 mb-2">Gemini API Key</label>
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={onClose} role="dialog" aria-modal="true" aria-labelledby="api-key-title">
+            <div className="bg-white/70 backdrop-blur-2xl rounded-2xl shadow-2xl w-full max-w-md p-6 border border-white/40 animate-slide-in-bottom" onClick={e => e.stopPropagation()} style={{ animationDuration: '0.3s' }}>
+                <h2 id="api-key-title" className="text-2xl font-bold text-slate-900 mb-3">Settings</h2>
+                <p className="text-sm text-slate-700 mb-4">Enter your Gemini API key. Your key is stored locally in your browser and is not sent to our servers.</p>
+                <div className="mb-4">
+                    <label htmlFor="apiKey" className="block text-sm font-medium text-slate-800 mb-1.5">Gemini API Key</label>
                     <input
-                        id="apiKeyInput"
                         type="password"
+                        id="apiKey"
                         value={apiKey}
-                        onChange={e => setApiKey(e.target.value)}
+                        onChange={(e) => setApiKey(e.target.value)}
+                        className="w-full px-3 py-2 bg-white/50 border border-slate-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-[--primary] focus:border-[--primary] transition"
                         placeholder="Enter your API key"
-                        className="w-full px-4 py-2.5 bg-white/40 border border-white/20 rounded-lg shadow-inner text-slate-800 placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-purple-400/50 focus:border-purple-400 transition"
-                        autoComplete="off"
                     />
                 </div>
-
-                <div className="flex justify-between items-center">
-                    <button onClick={handleClear} className="px-4 py-2 text-sm font-medium text-red-600 rounded-lg hover:bg-red-500/10 transition-colors">
-                        Clear Key
+                <div className="flex justify-end gap-3">
+                    <button onClick={onClose} className="px-5 py-2.5 bg-white/50 text-slate-800 font-medium rounded-lg hover:bg-white/80 transition-colors shadow-md border border-white/20">
+                        Cancel
                     </button>
-                    <div className="flex gap-3">
-                        <button onClick={onClose} className="px-5 py-2.5 bg-white/50 text-slate-800 font-medium rounded-lg hover:bg-white/80 transition-colors shadow-md border border-white/20">
-                            Cancel
-                        </button>
-                        <button 
-                            onClick={handleSave} 
-                            className="px-5 py-2.5 bg-gradient-to-br from-purple-600 to-indigo-600 text-white font-semibold rounded-lg shadow-lg hover:scale-105 transition-transform duration-200"
-                        >
-                            Save Key
-                        </button>
-                    </div>
+                    <button onClick={handleSave} className="px-5 py-2.5 bg-[--primary] text-white font-semibold rounded-lg shadow-lg hover:scale-105 transition-transform duration-200">
+                        Save
+                    </button>
                 </div>
             </div>
         </div>
